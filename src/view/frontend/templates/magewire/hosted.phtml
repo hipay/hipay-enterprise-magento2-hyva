@@ -1,0 +1,351 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+declare(strict_types=1);
+
+use HiPay\FullserviceHyvaCheckout\Magewire\CardMethod;
+use HiPay\FullserviceHyvaCheckout\ViewModel\Config;
+use HiPay\FullserviceMagento\Model\Method\HostedMethod;
+use Hyva\Theme\Model\ViewModelRegistry;
+use Magento\Framework\Escaper;
+
+/** @var ViewModelRegistry $viewModels */
+/** @var CardMethod $magewire */
+/** @var Escaper $escaper */
+$configViewModel = $viewModels->require(Config::class);
+$oneClickEnabled = $configViewModel->getOneClickEnabled(HostedMethod::HIPAY_METHOD_CODE);
+$customerCards = $configViewModel->getCustomerCards();
+?>
+
+<div>
+    <script>
+        (() => {
+            const HIPAY_METHOD_HOSTED = '<?= $escaper->escapeJs(HostedMethod::HIPAY_METHOD_CODE) ?>';
+            const HIPAY_METHOD_HOSTED_WIRE_ID = '<?= /* @NoEscape */ $magewire->getId() ?>';
+
+            if (!window.hostedInitalized) {
+                window.addEventListener('checkout:payment:method-activate', (event) => {
+                    if (event.detail && event.detail.method === HIPAY_METHOD_HOSTED) {
+                        hyvaCheckout.payment.activate(HIPAY_METHOD_HOSTED, {
+                            hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
+                            hiPayCcConfig: <?= /* @noEscape */ $configViewModel->getSerializedCreditCardConfig() ?>,
+                            selectors: {},
+                            component: {
+                                afterPlaceOrderUrl: '',
+                                createOneclick: false,
+                                customerCards: [],
+                                isIframeMode: '',
+                                isInAction: false,
+                                iframeHeight: '',
+                                iframeStyle: '',
+                                iframeWidth: '',
+                                iframeWrapperStyle: ''
+                            },
+                            async initialize() {
+                                this._initializeComponent();
+
+                                const { isIframeMode } = this.component;
+                                const {
+                                    noticeMessage,
+                                    oneClickCheckbox,
+                                    continueBtn,
+                                } = this.selectors;
+
+                                if (oneClickCheckbox) {
+                                    oneClickCheckbox.addEventListener('change', (event) => {
+                                        this.component.createOneclick = event.currentTarget.checked;
+                                    });
+                                }
+
+                                if (!window.hipaySdk) {
+                                    this._initHipaySdk();
+                                }
+
+                                if (isIframeMode) {
+                                    this.setIframe();
+                                } else {
+                                    noticeMessage.classList.remove('hidden');
+                                }
+
+                                continueBtn.addEventListener('click', () => this.placePendingPaymentOrder());
+
+                                document.querySelector('#hosted-ioBBFingerPrint').value = this.setFingerprint();
+
+                                window.hostedInitalized = true;
+                                hyvaCheckout.navigation.disableButtonPlaceOrder();
+                            },
+                            _initHipaySdk() {
+                                let lang = 'en';
+
+                                if (this.component.locale && this.component.locale.length > 2) {
+                                    lang = this.component.locale.substr(0, 2);
+                                }
+
+                                window.hipaySdk = new HiPay({
+                                    username: this.component.apiUsernameTokenJs,
+                                    password: this.component.apiPasswordTokenJs,
+                                    environment: this.component.env,
+                                    lang: lang
+                                });
+                            },
+                            setIframe() {
+                                const { iframeWrapper, iframe } = this.selectors;
+                                const { iframeWrapperStyle, iframeStyle, iframeHeight, iframeWidth } = this.component;
+
+                                iframeWrapper.style = iframeWrapperStyle;
+                                iframe.style = iframeStyle;
+                                iframe.style.width = iframeWidth;
+                                iframe.style.height = iframeHeight;
+                            },
+                            _initializeComponent() {
+                                const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
+                                const { hipay_hosted_fields } =  this.hiPayCcConfig.payment;
+
+                                this.selectors = {
+                                    iframeContainer: this.el.querySelector('.iframe-container'),
+                                    iframe: this.el.querySelector('iframe'),
+                                    registeredCc: this.el.querySelector('.cc-registered-row'),
+                                    saveCc: this.el.querySelector('.save-cc'),
+                                    oneClickCheckbox: this.el.querySelector('[name="payment[create_oneclick]"]'),
+                                    notice: this.el.querySelector('.notice'),
+                                    noticeMessage: this.el.querySelector('.notice-message'),
+                                    continueWrapper: this.el.querySelector('.iframe-continue'),
+                                    fingerPrintInput: this.el.querySelector('#ioBB'),
+                                    iframeWrapper: this.el.querySelector('.iframe-wrapper')
+                                };
+                                this.selectors.continueBtn = this.selectors.continueWrapper.querySelector('button');
+
+                                this.component = {
+                                    ...this.component,
+                                    ...{
+                                        env: hipay_hosted_fields.env,
+                                        apiUsernameTokenJs: hipay_hosted_fields.apiUsernameTokenJs,
+                                        apiPasswordTokenJs: hipay_hosted_fields.apiPasswordTokenJs,
+                                        afterPlaceOrderUrl: hiPayFullservice.afterPlaceOrderUrl[HIPAY_METHOD_HOSTED],
+                                        customerCards: hiPayFullservice.customerCards,
+                                        isIframeMode: hiPayFullservice.isIframeMode[HIPAY_METHOD_HOSTED],
+                                        iframeWidth: hiPayFullservice.iFrameWidth[HIPAY_METHOD_HOSTED],
+                                        iframeHeight: hiPayFullservice.iFrameHeight[HIPAY_METHOD_HOSTED],
+                                        iframeStyle: hiPayFullservice.iFrameStyle[HIPAY_METHOD_HOSTED],
+                                        iframeWrapperStyle: hiPayFullservice.iFrameWrapperStyle[HIPAY_METHOD_HOSTED],
+                                        useOneClick: hiPayFullservice.useOneclick.hipay_hosted
+                                    }
+                                };
+                            },
+                            setFingerprint() {
+                                const { fingerPrintInput } = this.selectors;
+                                if (fingerPrintInput) {
+                                    return fingerPrintInput.value;
+                                } else {
+                                    return '';
+                                }
+                            },
+                            placeOrderViaJs() {
+                                return true;
+                            },
+                            async placePendingPaymentOrder() {
+                                const isValid = await hyvaCheckout.validation.validate();
+
+                                if (!isValid) return;
+
+                                const customerCardIsSelected = await Magewire.find(HIPAY_METHOD_HOSTED_WIRE_ID).get('customerCardIsSelected');
+                                const { isIframeMode, afterPlaceOrderUrl, createOneclick } = this.component;
+
+                                if (!isIframeMode && !customerCardIsSelected) {
+                                    const paymentData = {
+                                        additionalData: {
+                                            create_oneclick: this.component.createOneclick,
+                                            eci: this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci,
+                                            redirectUrl: afterPlaceOrderUrl
+                                        }
+                                    }
+
+                                    Magewire.find(HIPAY_METHOD_HOSTED_WIRE_ID)
+                                        .call('setPaymentData', paymentData)
+                                        .then(() => {
+                                            hyvaCheckout.main.getWireComponent().placeOrder()
+                                        });
+
+                                    return;
+                                }
+
+                                let fingerprint = document.getElementById('ioBB').value;
+
+                                if (document.getElementById('ioBBCard').value !== '') {
+                                    fingerprint = document.getElementById('ioBBCard').value;
+                                }
+
+                                if (customerCardIsSelected) {
+                                    const selectedCustomerCard = await Magewire.find(HIPAY_METHOD_HOSTED_WIRE_ID).get('selectedCustomerCard');
+                                    const { ccOwner, ccToken, ccType } = this.component.customerCards[selectedCustomerCard];
+
+                                    const paymentData = {
+                                        ccType: ccType,
+                                        additionalData: {
+                                            create_oneclick: false,
+                                            card_token: ccToken,
+                                            can_redirect: true,
+                                            eci: this.hiPayGeneralConfig.payment.hiPayFullservice.recurringEci,
+                                            cc_type: ccType,
+                                            fingerprint: fingerprint,
+                                            cc_cid: "",
+                                            cc_ss_start_month: "",
+                                            cc_ss_start_year: "",
+                                            cc_exp_year: "",
+                                            cc_exp_month: "",
+                                            cc_number: "",
+                                            cc_owner: ccOwner,
+                                            browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo())
+                                        }
+                                    }
+
+                                    Magewire.find(HIPAY_METHOD_HOSTED_WIRE_ID).call('setPaymentData', paymentData).then(() => {
+                                        hyvaCheckout.main.getWireComponent().placeOrder();
+                                    });
+                                } else {
+                                    const {
+                                        iframeContainer,
+                                        iframe,
+                                        continueWrapper,
+                                        notice
+                                    } = this.selectors;
+
+                                    const paymentData = {
+                                        additionalData: {
+                                            create_oneclick: this.component.createOneclick,
+                                            eci: this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci,
+                                            fingerprint: fingerprint
+                                        }
+                                    }
+
+                                    Magewire.find(HIPAY_METHOD_HOSTED_WIRE_ID).call('setPaymentData', paymentData).then(() => {
+                                        hyvaCheckout.main.getWireComponent()
+                                            .placeOrder()
+                                            .then(() => {
+                                                iframeContainer.style.display = 'block';
+                                                notice.style.display = 'block';
+                                                continueWrapper.style.display = 'none';
+
+                                                this.component.isInAction = true;
+                                                iframe.src = this.component.afterPlaceOrderUrl;
+
+                                                // capture all click events
+                                                document.addEventListener('click', iframe.stopEventPropagation, true);
+                                            });
+                                    });
+                                }
+                            }
+                        }, document.getElementById('hipay-container-hosted'));
+                    }
+                });
+            }
+        })();
+    </script>
+
+    <div id="hipay-container-hosted">
+        <div class="form"
+             id="co-transparent-form">
+            <input
+                type="hidden"
+                id="hosted-ioBBFingerPrint"
+                name="payment[device_fingerprint]"
+            />
+            <?php if ($oneClickEnabled && $customerCards): ?>
+                <div class="hipay-row cc-registered-row">
+                    <div class="flex flex-col w-full items-start">
+                        <label
+                            for="hipay_hosted_fields_cc_token"
+                            class="label"
+                        >
+                            <span> <?= $escaper->escapeHtml(__('Your credit cards')) ?></span>
+                        </label>
+                        <div class="w-full">
+                            <select
+                                name="payment[cc_token]"
+                                class="form-select w-full"
+                                wire:model="selectedCustomerCard"
+                                id="hipay_hosted_fields_cc_token">
+                                <option value="">
+                                    <?= $escaper->escapeHtml(__('Pay with a new card')) ?>
+                                </option>
+                                <?php foreach ($magewire->customerCards as $key => $customerCard): ?>
+                                    <option value="<?= $escaper->escapeHtmlAttr($key) ?>">
+                                        <?= $escaper->escapeHtml($customerCard['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!$magewire->customerCardIsSelected): ?>
+                <div class="field save-cc">
+                    <div class="control">
+                        <input
+                            type="checkbox"
+                            name="payment[create_oneclick]"
+                            value="1"
+                            class="checkbox"
+                            id="hipay_hosted_create_oneclick"
+                        />
+                        <label class="label" for="hipay_hosted_create_oneclick">
+                            <span>
+                               <?= $escaper->escapeHtml(__('Save this card for future use')) ?>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+        <div class="notice-message mt-2 hidden" wire:ignore>
+            <span>
+                <?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order')) ?>
+            </span>
+        </div>
+        <div class="actions-toolbar border-t-0 iframe-continue" wire:ignore>
+            <div class="primary">
+                <button
+                    data-role="review-save"
+                    type="button"
+                    class="button action primary continue"
+                >
+                    <span>
+                        <?= $escaper->escapeHtml(__('Continue')) ?>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div class="iframe-container" style="display:none;" wire:ignore>
+            <div id="iframe-warning" class="message notice">
+                <div>
+                    <span>
+                        <?= $escaper->escapeHtml(__('Please do not refresh the page until you complete payment.')) ?>
+                    </span>
+                </div>
+            </div>
+            <div class="iframe-wrapper" wire:ignore>
+                <iframe
+                    id="hosted-iframe"
+                    data-container="hipay-hosted-iframe"
+                    class="hipay_hosted iframe"
+                    border="0"
+                    title="HiPay Hosted Page"
+                    sandbox="allow-modals allow-top-navigation allow-same-origin allow-scripts allow-forms"
+                ></iframe>
+            </div>
+        </div>
+    </div>
+</div>

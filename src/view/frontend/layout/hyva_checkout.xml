@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="HiPay_FullserviceMagento::css/hipay.css"/>
+        <css src="HiPay_FullserviceMagento::css/hosted-fields.css"/>
+    </head>
+    <body>
+        <referenceBlock name="content">
+            <block class="HiPay\FullserviceMagento\Block\ExternalJS" name="hipay_fingerprint_field" ifconfig="hipay/configurations/fingerprint_enabled" template="additional/fingerprint_field.phtml"/>
+        </referenceBlock>
+        <referenceBlock name="head.additional">
+            <block class="HiPay\FullserviceMagento\Block\ExternalJS" name="hipay_fingerprint_js" ifconfig="hipay/configurations/fingerprint_enabled" template="additional/fingerprint_js.phtml"/>
+        </referenceBlock>
+        <referenceBlock name="head.additional">
+            <block class="HiPay\FullserviceMagento\Block\ExternalJS" name="hipay_external_js" template="additional/external_js.phtml"/>
+        </referenceBlock>
+        <referenceBlock name="checkout.payment.methods">
+            <block name="checkout.payment.method.hipay_alma3X"
+                   as="hipay_alma3X"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/alma3X.phtml" />
+            <block name="checkout.payment.method.hipay_alma4X"
+                   as="hipay_alma4X"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/alma4X.phtml" />
+            <block name="checkout.payment.method.hipay_applepay"
+                   as="hipay_applepay"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/applepay.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">\HiPay\FullserviceHyvaCheckout\Magewire\ApplePayMethod</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_hosted"
+                   as="hipay_hosted"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">\HiPay\FullserviceHyvaCheckout\Magewire\CardMethod</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_hosted_fields"
+                   as="hipay_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">\HiPay\FullserviceHyvaCheckout\Magewire\CardMethod</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_paypalapi"
+                   as="hipay_paypalapi"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/paypalapi.phtml" />
+        </referenceBlock>
+    </body>
+</page>

@@ -1,0 +1,27 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+declare(strict_types=1);
+
+use Hyva\Theme\Model\ViewModelRegistry;
+use Magento\Framework\Escaper;
+
+/** @var ViewModelRegistry $viewModels */
+/** @var Escaper $escaper */
+?>
+
+<div>
+    <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
+</div>
