@@ -36,7 +36,6 @@ $customerCards = $configViewModel->getCustomerCards();
         (() => {
             const HIPAY_METHOD_HOSTED_FIELDS = '<?= HostedFieldsMethod::HIPAY_METHOD_CODE ?>';
             const HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID = '<?= /* @NoEscape */ $magewire->getId() ?>';
-
             if (!window.hipayHostedFieldsInitialized) {
                 window.addEventListener('checkout:payment:method-activate', (event) => {
                     if (event.detail && event.detail.method === HIPAY_METHOD_HOSTED_FIELDS) {
@@ -66,10 +65,12 @@ $customerCards = $configViewModel->getCustomerCards();
                                 isPlaceOrderAllowed: false
                             },
                             async initialize() {
-                                this._initializeComponent();
-                                this._initializeFieldsData();
-                                this._initHostedFields();
-                                this._bindFields();
+                                if (this.el !== null) {
+                                    this._initializeComponent();
+                                    this._initializeFieldsData();
+                                    this._initHostedFields();
+                                    this._bindFields();
+                                }
                             },
                             _bindFields() {
                                 this.selectors.oneClickCheckbox.addEventListener('click', (event) => {
@@ -111,10 +112,15 @@ $customerCards = $configViewModel->getCustomerCards();
                                 }
 
                                 this.selectors = {
-                                    registeredCc: this.el.querySelector('.cc-registered-row'),
+                                    registeredCc: '',
                                     saveCc: this.el.querySelector('.save-cc'),
                                     oneClickCheckbox: this.el.querySelector('[name="payment[create_oneclick]"]')
                                 };
+
+                                if (this.component.createOneclick && this.component.customerCards.length) {
+                                    this.selectors.registeredCc = this.el.querySelector('.cc-registered-row')
+                                }
+                                document.querySelector('.btn-place-order').removeAttribute('disabled');
                             },
                             _initializeFieldsData() {
                                 let customerFirstName = '',

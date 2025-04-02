@@ -6,7 +6,8 @@
     "require": {
         "magento/framework": "*",
         "hyva-themes/magento2-compat-module-fallback": "*",
-        "hipay/hipay-fullservice-sdk-magento2": "*"
+        "hipay/hipay-fullservice-sdk-magento2": "*",
+        "hyva-themes/magento2-hyva-checkout": "<=1.1.29"
     },
     "license": [
         "Apache-2.0"

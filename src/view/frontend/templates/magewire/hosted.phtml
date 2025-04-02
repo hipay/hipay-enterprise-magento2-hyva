@@ -54,6 +54,10 @@ $customerCards = $configViewModel->getCustomerCards();
                                 iframeWrapperStyle: ''
                             },
                             async initialize() {
+                                if (!this.el) {
+                                    return;
+                                }
+
                                 this._initializeComponent();
 
                                 const { isIframeMode } = this.component;
@@ -83,8 +87,7 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                 document.querySelector('#hosted-ioBBFingerPrint').value = this.setFingerprint();
 
-                                window.hostedInitalized = true;
-                                hyvaCheckout.navigation.disableButtonPlaceOrder();
+                                document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
                             },
                             _initHipaySdk() {
                                 let lang = 'en';
@@ -250,6 +253,7 @@ $customerCards = $configViewModel->getCustomerCards();
                         }, document.getElementById('hipay-container-hosted'));
                     }
                 });
+                window.hostedInitalized = true;
             }
         })();
     </script>
