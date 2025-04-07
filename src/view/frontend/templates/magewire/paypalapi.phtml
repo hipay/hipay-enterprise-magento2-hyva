@@ -17,10 +17,23 @@ declare(strict_types=1);
 
 use Hyva\Theme\Model\ViewModelRegistry;
 use Magento\Framework\Escaper;
+use HiPay\FullserviceMagento\Model\Method\Paypal;
 
 /** @var ViewModelRegistry $viewModels */
 /** @var Escaper $escaper */
 ?>
+
+<script>
+    (() => {
+        const HIPAY_METHOD_PAYPAL = '<?= Paypal::HIPAY_METHOD_CODE ?>';
+        window.addEventListener('checkout:payment:method-activate', (event) => {
+            if (event.detail && event.detail.method === HIPAY_METHOD_PAYPAL) {
+                document.querySelector('.btn-place-order').removeAttribute('disabled');
+            }
+        })
+
+    })();
+</script>
 
 <div>
     <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
