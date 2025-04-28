@@ -77,7 +77,6 @@ $quoteInfo = $magewire->getQuoteInformation();
                         _initializeComponent() {
                             const {hipay_applepay} = this.hiPayApplePayConfig.payment;
                             const {hiPayFullservice} = this.hiPayGeneralConfig.payment;
-                            console.log(hipay_applepay)
 
                             if (hipay_applepay) {
                                 this.component = {
@@ -112,21 +111,20 @@ $quoteInfo = $magewire->getQuoteInformation();
                             }
 
                             return new Promise((resolve) => {
-                                // if (this.component.merchantId) {
-                                //     this._initHipaySdk();
-                                //     window.hipaySdk
-                                //         .canMakePaymentsWithActiveCard(this.component.merchantId)
-                                //         .then((canMakePayments) => {
-                                //             console.log(canMakePayments)
-                                //             resolve(true);
-                                //         });
-                                // } else {
+                                if (this.component.merchantId) {
+                                    this._initHipaySdk();
+                                    window.hipaySdk
+                                        .canMakePaymentsWithActiveCard(this.component.merchantId)
+                                        .then((canMakePayments) => {
+                                            resolve(canMakePayments);
+                                        });
+                                } else {
                                     const canMakePayments = window.ApplePaySession ?
                                         window.ApplePaySession.canMakePayments() :
                                         false;
 
                                     resolve(canMakePayments);
-                                // }
+                                }
                             });
                         },
                         _initApplePay() {
