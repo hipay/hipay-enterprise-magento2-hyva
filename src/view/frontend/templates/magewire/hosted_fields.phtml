@@ -62,7 +62,8 @@ $customerCards = $configViewModel->getCustomerCards();
                                 hipayHostedFields: null,
                                 configHipay: null,
                                 hipayHFstatus: false,
-                                isPlaceOrderAllowed: false
+                                isPlaceOrderAllowed: false,
+                                placeOrderBtn: '',
                             },
                             async initialize() {
                                 if (this.el !== null) {
@@ -80,6 +81,7 @@ $customerCards = $configViewModel->getCustomerCards();
                             _initializeComponent() {
                                 const { hipay_hosted_fields } =  this.hiPayCcConfig.payment;
                                 const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
+                                this.component.placeOrderBtn = document.querySelector('.btn-place-order');
 
                                 if (hipay_hosted_fields) {
                                     this.component = {
@@ -120,7 +122,10 @@ $customerCards = $configViewModel->getCustomerCards();
                                 if (this.component.createOneclick && this.component.customerCards.length) {
                                     this.selectors.registeredCc = this.el.querySelector('.cc-registered-row')
                                 }
-                                document.querySelector('.btn-place-order').removeAttribute('disabled');
+
+                                if (this.component.placeOrderBtn) {
+                                    this.component.placeOrderBtn.removeAttribute('disabled');
+                                }
                             },
                             _initializeFieldsData() {
                                 let customerFirstName = '',
