@@ -295,7 +295,7 @@ $customerCards = $configViewModel->getCustomerCards();
                 </div>
             <?php endif; ?>
 
-            <?php if (!$magewire->customerCardIsSelected): ?>
+            <?php if (!$magewire->customerCardIsSelected && $oneClickEnabled): ?>
                 <div class="field save-cc">
                     <div class="control">
                         <input
