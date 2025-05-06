@@ -116,7 +116,7 @@ $customerCards = $configViewModel->getCustomerCards();
                                 this.selectors = {
                                     registeredCc: '',
                                     saveCc: this.el.querySelector('.save-cc'),
-                                    oneClickCheckbox: this.el.querySelector('[name="payment[create_oneclick]"]')
+                                    oneClickCheckbox: this.el.querySelector('[name="payment[§]"]')
                                 };
 
                                 if (this.component.createOneclick && this.component.customerCards.length) {
@@ -265,23 +265,18 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                 if (customerCardIsSelected) {
                                     const selectedCustomerCard = Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).get('selectedCustomerCard');
-                                    const { ccOwner, ccToken, ccType } = this.component.customerCards[selectedCustomerCard];
+                                    const { card_holder, token, brand } = this.component.customerCards[selectedCustomerCard];
 
                                     const paymentData = {
-                                        ccType: ccType,
+                                        ccType: brand,
                                         additionalData: {
-                                            create_oneclick: false,
-                                            card_token: ccToken,
+                                            payment_product: brand,
+                                            card_multi_use: false,
+                                            card_token: token,
                                             eci: this.hiPayGeneralConfig.payment.hiPayFullservice.recurringEci,
-                                            cc_type: ccType,
+                                            cc_type: brand,
                                             fingerprint: window.hipaySdk.getDeviceFingerprint(),
-                                            cc_cid: "",
-                                            cc_ss_start_month: "",
-                                            cc_ss_start_year: "",
-                                            cc_exp_year: "",
-                                            cc_exp_month: "",
-                                            cc_number: "",
-                                            cc_owner: ccOwner,
+                                            cc_owner: card_holder,
                                             browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo())
                                         }
                                     }
@@ -296,26 +291,23 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                             if (token && payment_product && device_fingerprint) {
                                                 const paymentData = {
-                                                    ccType: payment_product,
+                                                    ccType: response.payment_product,
                                                     additionalData: {
-                                                        create_oneclick: this.component.createOneclick,
-                                                        card_token: token,
+                                                        card_multi_use: this.component.createOneclick,
                                                         eci: this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci,
-                                                        cc_type: payment_product,
                                                         fingerprint: device_fingerprint,
-                                                        cc_cid: this.component.creditCardVerificationNumber,
-                                                        cc_ss_start_month: this.component.creditCardSsStartMonth,
-                                                        cc_ss_start_year: this.component.creditCardSsStartYear,
-                                                        cc_exp_year: this.component.creditCardExpYear,
-                                                        cc_exp_month: this.component.creditCardExpMonth,
-                                                        cc_number: this.component.creditCardNumber,
-                                                        cc_owner: this.component.creditCardOwner,
-                                                        browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo())
-                                                    }
+                                                        browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo()),
+                                                        card_token: token,
+                                                        cc_type: response.payment_product,
+                                                        card_expiry_year: response.card_expiry_year,
+                                                        card_expiry_month: response.card_expiry_month,
+                                                        cc_owner:response.card_holder,
+                                                        card_pan: response.pan,
+                                                    },
                                                 }
 
                                                 Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).call('setPaymentData', paymentData).then(() => {
-                                                    hyvaCheckout.main.getWireComponent().placeOrder();
+                                                      hyvaCheckout.main.getWireComponent().placeOrder();
                                                 });
                                             } else {
                                                 throw response.error;
@@ -363,7 +355,7 @@ $customerCards = $configViewModel->getCustomerCards();
                                 </option>
                                 <?php foreach ($magewire->customerCards as $key => $customerCard): ?>
                                     <option value="<?= $escaper->escapeHtmlAttr($key) ?>">
-                                        <?= $escaper->escapeHtml($customerCard['name']) ?>
+                                        <?= $escaper->escapeHtml($customerCard['brand'] . ' - ' . $customerCard['pan']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
