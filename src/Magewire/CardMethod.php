@@ -49,7 +49,6 @@ class CardMethod extends Component
         $quote = $this->checkoutSession->getQuote();
         $billingAddress = $quote->getBillingAddress();
         $this->customerCards = $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['customerCards'];
-
         if ($billingAddress) {
             $this->customerInformation = [
                 'firstName' => $billingAddress->getFirstname(),

@@ -227,7 +227,7 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                     const paymentData = {
                                         additionalData: {
-                                            create_oneclick: this.component.createOneclick,
+                                            card_multi_use: this.component.createOneclick,
                                             eci: this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci,
                                             fingerprint: fingerprint
                                         }
@@ -286,7 +286,7 @@ $customerCards = $configViewModel->getCustomerCards();
                                 </option>
                                 <?php foreach ($magewire->customerCards as $key => $customerCard): ?>
                                     <option value="<?= $escaper->escapeHtmlAttr($key) ?>">
-                                        <?= $escaper->escapeHtml($customerCard['name']) ?>
+                                        <?= $escaper->escapeHtml($customerCard['brand'] . ' - ' . $customerCard['pan']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
