@@ -114,7 +114,6 @@ $customerCards = $configViewModel->getCustomerCards();
                             },
                             _initializeComponent() {
                                 const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
-                                const { hipay_hosted_fields } =  this.hiPayCcConfig.payment;
 
                                 this.selectors = {
                                     iframeContainer: this.el.querySelector('.iframe-container'),
@@ -133,9 +132,9 @@ $customerCards = $configViewModel->getCustomerCards();
                                 this.component = {
                                     ...this.component,
                                     ...{
-                                        env: hipay_hosted_fields.env,
-                                        apiUsernameTokenJs: hipay_hosted_fields.apiUsernameTokenJs,
-                                        apiPasswordTokenJs: hipay_hosted_fields.apiPasswordTokenJs,
+                                        env: '<?= /* @noEscape */ $configViewModel->getApiEnv() ?>',
+                                        apiUsernameTokenJs:  '<?= /* @noEscape */ $configViewModel->getApiUsernameTokenJs() ?>',
+                                        apiPasswordTokenJs: '<?= /* @noEscape */ $configViewModel->getApiPasswordTokenJs() ?>',
                                         afterPlaceOrderUrl: hiPayFullservice.afterPlaceOrderUrl[HIPAY_METHOD_HOSTED],
                                         customerCards: hiPayFullservice.customerCards,
                                         isIframeMode: hiPayFullservice.isIframeMode[HIPAY_METHOD_HOSTED],

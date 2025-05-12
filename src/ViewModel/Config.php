@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HiPay\FullserviceHyvaCheckout\ViewModel;
 
+use HiPay\FullserviceMagento\Block\Adminhtml\HipayConfig;
 use HiPay\FullserviceMagento\Model\Method\Providers\ApplepayConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\CcConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
@@ -29,8 +30,24 @@ class Config implements ArgumentInterface
         private CcConfigProvider $creditCardConfigProvider,
         private SerializerInterface $serializer,
         private GenericConfigProvider $genericConfigProvider,
-        private ApplepayConfigProvider $applepayConfigProvider
+        private ApplepayConfigProvider $applepayConfigProvider,
+        private HipayConfig $hipayConfig,
     ) {
+    }
+
+    public function getApiUsernameTokenJs(): string
+    {
+        return $this->hipayConfig->getApiUsernameTokenJs();
+    }
+
+    public function getApiPasswordTokenJs(): string
+    {
+        return $this->hipayConfig->getApiPasswordTokenJs();
+    }
+
+    public function getApiEnv(): string
+    {
+        return $this->hipayConfig->getEnv();
     }
 
     public function getSerializedCreditCardConfig(): string
