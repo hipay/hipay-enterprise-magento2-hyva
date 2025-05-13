@@ -34,7 +34,6 @@ $quoteInfo = $magewire->getQuoteInformation();
             const HIPAY_METHOD_APPLE_PAY = '<?= ApplePay::HIPAY_METHOD_CODE ?>';
             const HIPAY_METHOD_APPLE_PAY_SELECTOR = 'hipay-apple-pay-button';
             const HIPAY_METHOD_APPLE_PAY_WIRE_ID = '<?= $magewire->getId() ?>';
-
             window.addEventListener('checkout:payment:method-activate', (event) => {
                 if (event.detail && event.detail.method === HIPAY_METHOD_APPLE_PAY) {
                     hyvaCheckout.payment.activate(HIPAY_METHOD_APPLE_PAY, {
@@ -68,14 +67,16 @@ $quoteInfo = $magewire->getQuoteInformation();
                                 this._initApplePay();
                                 document.getElementById('applepay-message').remove();
                             } else {
-                                hyvaCheckout.navigation.disableButtonPlaceOrder();
-                                this.el.remove();
-                                document.getElementById('applepay-message').classList.remove('hidden');
+                                if (this.el) {
+                                    this.el.remove();
+                                    document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
+                                    document.getElementById('applepay-message').classList.remove('hidden');
+                                }
                             }
                         },
                         _initializeComponent() {
-                            const { hipay_applepay } =  this.hiPayApplePayConfig.payment;
-                            const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
+                            const {hipay_applepay} = this.hiPayApplePayConfig.payment;
+                            const {hiPayFullservice} = this.hiPayGeneralConfig.payment;
 
                             if (hipay_applepay) {
                                 this.component = {
@@ -209,8 +210,7 @@ $quoteInfo = $magewire->getQuoteInformation();
                         }
                     }, document.getElementById(HIPAY_METHOD_APPLE_PAY_SELECTOR));
                 }
-            }, {once: true});
-
+            });
         })();
     </script>
 

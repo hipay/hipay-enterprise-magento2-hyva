@@ -54,6 +54,10 @@ $customerCards = $configViewModel->getCustomerCards();
                                 iframeWrapperStyle: ''
                             },
                             async initialize() {
+                                if (!this.el) {
+                                    return;
+                                }
+
                                 this._initializeComponent();
 
                                 const { isIframeMode } = this.component;
@@ -83,8 +87,7 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                 document.querySelector('#hosted-ioBBFingerPrint').value = this.setFingerprint();
 
-                                window.hostedInitalized = true;
-                                hyvaCheckout.navigation.disableButtonPlaceOrder();
+                                document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
                             },
                             _initHipaySdk() {
                                 let lang = 'en';
@@ -111,7 +114,6 @@ $customerCards = $configViewModel->getCustomerCards();
                             },
                             _initializeComponent() {
                                 const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
-                                const { hipay_hosted_fields } =  this.hiPayCcConfig.payment;
 
                                 this.selectors = {
                                     iframeContainer: this.el.querySelector('.iframe-container'),
@@ -130,9 +132,9 @@ $customerCards = $configViewModel->getCustomerCards();
                                 this.component = {
                                     ...this.component,
                                     ...{
-                                        env: hipay_hosted_fields.env,
-                                        apiUsernameTokenJs: hipay_hosted_fields.apiUsernameTokenJs,
-                                        apiPasswordTokenJs: hipay_hosted_fields.apiPasswordTokenJs,
+                                        env: '<?= /* @noEscape */ $configViewModel->getApiEnv() ?>',
+                                        apiUsernameTokenJs:  '<?= /* @noEscape */ $configViewModel->getApiUsernameTokenJs() ?>',
+                                        apiPasswordTokenJs: '<?= /* @noEscape */ $configViewModel->getApiPasswordTokenJs() ?>',
                                         afterPlaceOrderUrl: hiPayFullservice.afterPlaceOrderUrl[HIPAY_METHOD_HOSTED],
                                         customerCards: hiPayFullservice.customerCards,
                                         isIframeMode: hiPayFullservice.isIframeMode[HIPAY_METHOD_HOSTED],
@@ -224,7 +226,7 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                     const paymentData = {
                                         additionalData: {
-                                            create_oneclick: this.component.createOneclick,
+                                            card_multi_use: this.component.createOneclick,
                                             eci: this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci,
                                             fingerprint: fingerprint
                                         }
@@ -250,6 +252,7 @@ $customerCards = $configViewModel->getCustomerCards();
                         }, document.getElementById('hipay-container-hosted'));
                     }
                 });
+                window.hostedInitalized = true;
             }
         })();
     </script>
@@ -282,7 +285,7 @@ $customerCards = $configViewModel->getCustomerCards();
                                 </option>
                                 <?php foreach ($magewire->customerCards as $key => $customerCard): ?>
                                     <option value="<?= $escaper->escapeHtmlAttr($key) ?>">
-                                        <?= $escaper->escapeHtml($customerCard['name']) ?>
+                                        <?= $escaper->escapeHtml($customerCard['brand'] . ' - ' . $customerCard['pan']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -291,7 +294,7 @@ $customerCards = $configViewModel->getCustomerCards();
                 </div>
             <?php endif; ?>
 
-            <?php if (!$magewire->customerCardIsSelected): ?>
+            <?php if (!$magewire->customerCardIsSelected && $oneClickEnabled): ?>
                 <div class="field save-cc">
                     <div class="control">
                         <input
