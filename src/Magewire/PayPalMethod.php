@@ -40,7 +40,6 @@ class PayPalMethod extends Component
             'currency_code' => $quote->getQuoteCurrencyCode(),
             'base_total' => $quote->getGrandTotal(),
         ];
-
     }
 
     /**
