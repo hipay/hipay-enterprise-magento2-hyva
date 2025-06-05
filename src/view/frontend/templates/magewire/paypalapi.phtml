@@ -75,12 +75,41 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                                     apiPasswordTokenJs: '<?= $escaper->escapeJs($configViewModel->getApiPasswordTokenJs()); ?>',
                                 }
                             };
-                            this._initHipaySdk()
+                            this._initHipaySdk();
+                            this._initTOCEvents();
                         },
                         _convertToUpperCaseAfterUnderscore (str) {
                             let parts = str.split('_');
                             parts[1] = parts[1].toUpperCase();
                             return parts.join('_');
+                        },
+
+                        _initTOCEvents: function () {
+                            if (this.agreements.enabled) {
+                                this._initPaypalEvents();
+                            }
+                        },
+
+                        _initPaypalEvents: function () {
+                            const agreements = document.querySelectorAll(
+                                "input[id*='agreement']"
+                            );
+
+                            if (agreements.length) {
+                                agreements.forEach((input, index) => {
+
+                                    this.agreements.list.set(index, false);
+                                    input.addEventListener('change', (event) => {
+                                        this.agreements.list.set(index, event.target.checked);
+                                        this._updateTOCState();
+                                    });
+                                });
+                            }
+                        },
+
+                        _updateTOCState: function () {
+                            const unchecked = [...this.allTOC.values()].some(value => !value);
+                            this.agreements.allAgreementsChecked(!unchecked);
                         },
 
                         _initHipaySdk () {
