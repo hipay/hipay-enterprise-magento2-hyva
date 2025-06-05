@@ -90,4 +90,9 @@ class Config implements ArgumentInterface
     {
         return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
     }
+
+    public function isPayPalV2(): bool
+    {
+        return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
+    }
 }
