@@ -15,26 +15,91 @@
 
 declare(strict_types=1);
 
+use HiPay\FullserviceHyvaCheckout\Magewire\PayPalMethod;
+use HiPay\FullserviceMagento\Model\Method\Paypal;
+use HiPay\FullserviceHyvaCheckout\ViewModel\Config;
 use Hyva\Theme\Model\ViewModelRegistry;
 use Magento\Framework\Escaper;
-use HiPay\FullserviceMagento\Model\Method\Paypal;
 
 /** @var ViewModelRegistry $viewModels */
 /** @var Escaper $escaper */
+/** @var PayPalMethod $magewire */
+$configViewModel = $viewModels->require(Config::class);
+$isPayPalV2 = $configViewModel->isPayPalV2();
 ?>
 
 <script>
     (() => {
-        const HIPAY_METHOD_PAYPAL = '<?= Paypal::HIPAY_METHOD_CODE ?>';
+        const HIPAY_METHOD_PAYPAL_WIRE_ID = '<?= $escaper->escapeJs($magewire->getId()); ?>';
+        const HIPAY_METHOD_PAYPAL = '<?= $escaper->escapeJs(Paypal::HIPAY_METHOD_CODE) ?>';
         window.addEventListener('checkout:payment:method-activate', (event) => {
             if (event.detail && event.detail.method === HIPAY_METHOD_PAYPAL) {
                 document.querySelector('.btn-place-order').removeAttribute('disabled');
-            }
-        })
+                if (<?= $escaper->escapeJs((int) $isPayPalV2); ?>) {
+                    hyvaCheckout.payment.activate(HIPAY_METHOD_PAYPAL, {
+                        hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
+                        hiPayPayPalConfig: <?= /* @noEscape */ $configViewModel->getSerializedPayPalConfig() ?>,
+                        component: {},
+                        async initialize() {
+                            document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
+                            const HIPAY_METHOD_PAYPAL_CONFIG = this.hiPayPayPalConfig.payment[HIPAY_METHOD_PAYPAL]
+                            this.component = {
+                                template: 'auto',
+                                selector: 'paypal-field',
+                                canPayLater: Boolean(HIPAY_METHOD_PAYPAL_CONFIG.bnpl),
+                                isPayPalV2: <?= $escaper->escapeJs((int) $isPayPalV2); ?>,
+                                paypalButtonStyle: {
+                                    shape: HIPAY_METHOD_PAYPAL_CONFIG.buttonShape,
+                                    height: Number(HIPAY_METHOD_PAYPAL_CONFIG.buttonHeight),
+                                    color: HIPAY_METHOD_PAYPAL_CONFIG.buttonColor,
+                                    label: HIPAY_METHOD_PAYPAL_CONFIG.buttonLabel
+                                },
+                                request: {
+                                    locale: this._convertToUpperCaseAfterUnderscore(this.hiPayGeneralConfig.payment.hiPayFullservice.locale[HIPAY_METHOD_PAYPAL])
+                                }
+                            };
+                            this._initComponent()
+                        },
 
+                        _initComponent () {
+                            this.component = {
+                                ...this.component,
+                                ...{
+                                    env: '<?= $escaper->escapeJs($configViewModel->getApiEnv()); ?>',
+                                    apiUsernameTokenJs:  '<?= $escaper->escapeUrl($configViewModel->getApiUsernameTokenJs()); ?>',
+                                    apiPasswordTokenJs: '<?= $escaper->escapeJs($configViewModel->getApiPasswordTokenJs()); ?>',
+                                }
+                            };
+                            this._initHipaySdk()
+                        },
+                        _convertToUpperCaseAfterUnderscore (str) {
+                            let parts = str.split('_');
+                            parts[1] = parts[1].toUpperCase();
+                            return parts.join('_');
+                        },
+
+                        _initHipaySdk () {
+                            let lang =
+                                this.component.request.locale && this.component.request.locale.length > 2
+                                    ? this.component.request.locale.substr(0, 2)
+                                    : 'en';
+
+                            window.hipaySdk = new HiPay({
+                                username: this.component.apiUsernameTokenJs,
+                                password: this.component.apiPasswordTokenJs,
+                                environment: this.component.env,
+                                lang: lang
+                            });
+                        },
+                    });
+                }
+            }
+        });
     })();
 </script>
 
-<div>
-    <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
-</div>
+<?php if (!$isPayPalV2): ?>
+    <div>
+        <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
+    </div>
+<?php endif; ?>
