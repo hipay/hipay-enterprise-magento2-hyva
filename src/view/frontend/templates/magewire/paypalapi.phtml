@@ -40,48 +40,62 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
                         hiPayPayPalConfig: <?= /* @noEscape */ $configViewModel->getSerializedPayPalConfig() ?>,
                         component: {},
+                        paypalConfig: {},
                         agreements: {
                             enabled: <?= $escaper->escapeJs((int) $configViewModel->isTOCEnabled()); ?>,
                             list: new Map(),
                             allAgreementsChecked: false,
                         },
+
                         async initialize() {
                             document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
+
                             const HIPAY_METHOD_PAYPAL_CONFIG = this.hiPayPayPalConfig.payment[HIPAY_METHOD_PAYPAL]
-                            this.component = {
+                            this.paypalConfig = {
                                 template: 'auto',
                                 selector: 'paypal-field',
                                 canPayLater: Boolean(HIPAY_METHOD_PAYPAL_CONFIG.bnpl),
-                                isPayPalV2: <?= $escaper->escapeJs((int) $isPayPalV2); ?>,
                                 paypalButtonStyle: {
-                                    shape: HIPAY_METHOD_PAYPAL_CONFIG.buttonShape,
-                                    height: Number(HIPAY_METHOD_PAYPAL_CONFIG.buttonHeight),
-                                    color: HIPAY_METHOD_PAYPAL_CONFIG.buttonColor,
-                                    label: HIPAY_METHOD_PAYPAL_CONFIG.buttonLabel
+                                    shape: HIPAY_METHOD_PAYPAL_CONFIG.button_shape,
+                                    height: parseInt(HIPAY_METHOD_PAYPAL_CONFIG.button_height ?? 40),
+                                    color: HIPAY_METHOD_PAYPAL_CONFIG.button_color,
+                                    label: HIPAY_METHOD_PAYPAL_CONFIG.button_label
                                 },
                                 request: {
+                                    amount: this._safeToFixed(<?= $magewire->getQuoteInformations()['base_total']; ?>),
+                                    currency: '<?= $magewire->getQuoteInformations()['currency_code']; ?>'',
                                     locale: this._convertToUpperCaseAfterUnderscore(this.hiPayGeneralConfig.payment.hiPayFullservice.locale[HIPAY_METHOD_PAYPAL])
                                 }
-                            };
+                            }
+
                             this._initComponent();
                         },
 
                         _initComponent () {
+                            const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
                             this.component = {
                                 ...this.component,
                                 ...{
                                     env: '<?= $escaper->escapeJs($configViewModel->getApiEnv()); ?>',
                                     apiUsernameTokenJs:  '<?= $escaper->escapeUrl($configViewModel->getApiUsernameTokenJs()); ?>',
                                     apiPasswordTokenJs: '<?= $escaper->escapeJs($configViewModel->getApiPasswordTokenJs()); ?>',
+                                    afterPlaceOrderUrl: hiPayFullservice.afterPlaceOrderUrl[HIPAY_METHOD_PAYPAL]
                                 }
                             };
                             this._initHipaySdk();
                             this._initTOCEvents();
+                            this._initHostedFields();
                         },
+
+                        _safeToFixed (value, decimals = 2) {
+                            const factor = 10 ** decimals;
+                            const rounded =
+                                Math.round((parseFloat(value) + Number.EPSILON) * factor) / factor;
+                            return rounded.toFixed(decimals);
+                        },
+
                         _convertToUpperCaseAfterUnderscore (str) {
-                            let parts = str.split('_');
-                            parts[1] = parts[1].toUpperCase();
-                            return parts.join('_');
+                           return str.replace(/_(\w+)/, (_, match) => `_${match.toUpperCase()}`)
                         },
 
                         _initTOCEvents: function () {
@@ -113,8 +127,8 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
 
                         _initHipaySdk () {
                             let lang =
-                                this.component.request.locale && this.component.request.locale.length > 2
-                                    ? this.component.request.locale.substr(0, 2)
+                                this.paypalConfig.request.locale && this.paypalConfig.request.locale.length > 2
+                                    ? this.paypalConfig.request.locale.substr(0, 2)
                                     : 'en';
 
                             window.hipaySdk = new HiPay({
@@ -123,6 +137,41 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                                 environment: this.component.env,
                                 lang: lang
                             });
+                        },
+
+                        _initHostedFields: function () {
+                            this.hipayHostedFields = window.hipaySdk.create(
+                                'paypal',
+                                this.paypalConfig
+                            );
+
+                            this.hipayHostedFields.on('paymentAuthorized', (token) => {
+                                this._paymentAuthorized(token);
+                            });
+
+                            return true;
+                        },
+
+                        _paymentAuthorized: async function(tokenHipay) {
+                            const isValid = await hyvaCheckout.validation.validate();
+
+                            if (!isValid) {
+                                return;
+                            }
+
+                            const paymentData = {
+                                additionalData: {
+                                    paypal_order_id: tokenHipay.orderID,
+                                    browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo()),
+                                    redirectUrl: this.component.afterPlaceOrderUrl
+                                }
+                            }
+
+                            Magewire.find(HIPAY_METHOD_PAYPAL_WIRE_ID)
+                                .call('setPaymentData', paymentData)
+                                .then(() => {
+                                    hyvaCheckout.main.getWireComponent().placeOrder()
+                                });
                         },
                     });
                 }
@@ -135,4 +184,6 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
     <div>
         <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
     </div>
+<?php else: ?>
+    <div id="paypal-field" class="!w-2/3 pr-4 mx-auto"></div>
 <?php endif; ?>
