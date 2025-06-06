@@ -85,6 +85,22 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                             this._initHipaySdk();
                             this._initTOCEvents();
                             this._initHostedFields();
+                            this._disablePlaceOrderButton();
+                        },
+
+                        _disablePlaceOrderButton: function () {
+                            const observer = new MutationObserver((mutations, obs) => {
+                                const placeOrder = document.querySelector(".btn-place-order");
+                                if (placeOrder) {
+                                    placeOrder.setAttribute('disabled','disabled');
+                                    obs.disconnect();
+                                }
+                            });
+
+                            observer.observe(document.body, {
+                                childList: true,
+                                subtree: true
+                            });
                         },
 
                         _safeToFixed (value, decimals = 2) {
@@ -121,8 +137,19 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         },
 
                         _updateTOCState: function () {
-                            const unchecked = [...this.allTOC.values()].some(value => !value);
-                            this.agreements.allAgreementsChecked(!unchecked);
+                            const unchecked = [...this.agreements.list.values()].some(value => !value);
+                            this.agreements.allAgreementsChecked = !unchecked;
+
+                            const paypalContainer = document.querySelector("#paypal-field");
+                            const agreementsWarningContainer = document.querySelector("#paypal-agreements-warning");
+
+                            if (this.agreements.allAgreementsChecked) {
+                                paypalContainer.style.display = "block";
+                                agreementsWarningContainer.style.display = "none";
+                            } else {
+                                paypalContainer.style.display = "none";
+                                agreementsWarningContainer.style.display = "block";
+                            }
                         },
 
                         _initHipaySdk () {
@@ -140,6 +167,8 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         },
 
                         _initHostedFields: function () {
+                            document.querySelector('#paypal-agreements-warning').style.display = "none";
+
                             this.hipayHostedFields = window.hipaySdk.create(
                                 'paypal',
                                 this.paypalConfig
@@ -187,5 +216,8 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
         <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
     </div>
 <?php else: ?>
+    <?php if ((int) $configViewModel->isTOCEnabled()): ?>
+        <span id="paypal-agreements-warning"><?= __('Please accept all terms & conditions'); ?></span>
+    <?php endif ?>
     <div id="paypal-field" class="!w-2/3 pr-4 mx-auto"></div>
 <?php endif; ?>
