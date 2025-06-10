@@ -28,7 +28,7 @@ use Magento\Framework\Escaper;
 $configViewModel = $viewModels->require(Config::class);
 $customerInfo = $magewire->getCustomerInformation();
 $oneClickEnabled = $configViewModel->getOneClickEnabled(HostedFieldsMethod::HIPAY_METHOD_CODE);
-$customerCards = $configViewModel->getCustomerCards();
+$customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
 ?>
 
 <div>
@@ -140,8 +140,15 @@ $customerCards = $configViewModel->getCustomerCards();
 
                                 this.component.configHipay = {
                                     selector: 'hipay-container-hosted-fields',
-                                    multi_use: this.component.useOneClick && this.component.createOneclick,
+                                    one_click: {
+                                        enabled: true,
+                                        cards_display_count: 5,
+                                        cards: <?= $customerCards ?>
+                                    },
                                     fields: {
+                                        savedCards: {
+                                            selector: 'hipay-saved-cards'
+                                        },
                                         cardHolder: {
                                             selector: 'hipay-card-holder',
                                             defaultFirstname: customerFirstName,
@@ -157,6 +164,9 @@ $customerCards = $configViewModel->getCustomerCards();
                                             selector: 'hipay-cvc',
                                             helpButton: true,
                                             helpSelector: 'hipay-help-cvc'
+                                        },
+                                        savedCardButton: {
+                                            selector: 'hipay-saved-card-button'
                                         }
                                     },
                                     styles: {
@@ -168,7 +178,15 @@ $customerCards = $configViewModel->getCustomerCards();
                                             placeholderColor: this.component.placeholderColor,
                                             caretColor: this.component.caretColor,
                                             iconColor: this.component.iconColor
-                                        }
+                                        },
+                                        components: {
+                                            switch: {
+                                                mainColor: '#FF0000'
+                                            },
+                                            checkbox: {
+                                                mainColor: '#FFF000'
+                                            }
+                                        },
                                     }
                                 };
                             },
@@ -182,11 +200,6 @@ $customerCards = $configViewModel->getCustomerCards();
                             },
                             _createHostedFields() {
                                 this.component.hipayHostedFields = window.hipaySdk.create('card', this.component.configHipay);
-
-                                if (this.component.useOneClick) {
-                                    this.selectors.saveCc.classList.remove('hidden');
-                                }
-
                                 this._bindHostedFields();
                             },
                             _bindHostedFields() {
@@ -334,37 +347,13 @@ $customerCards = $configViewModel->getCustomerCards();
     <div
         class="form hosted-fields-form"
         id="co-transparent-form">
-        <div id="hipay-container-hosted-fields">
+        <div id="hipay-container-hosted-fields" class="bg-white">
+
             <?php if ($oneClickEnabled && $customerCards): ?>
-                <div class="hipay-row cc-registered-row">
-                    <div class="flex flex-col w-full items-start">
-                        <label
-                            for="hipay_hosted_fields_cc_token"
-                            class="label"
-                        >
-                            <span> <?= $escaper->escapeHtml(__('Your credit cards')) ?></span>
-                        </label>
-                        <div class="w-full">
-                            <select
-                                name="payment[cc_token]"
-                                class="form-select w-full"
-                                wire:model="selectedCustomerCard"
-                                id="hipay_hosted_fields_cc_token">
-                                <option value="">
-                                    <?= $escaper->escapeHtml(__('Pay with a new card')) ?>
-                                </option>
-                                <?php foreach ($magewire->customerCards as $key => $customerCard): ?>
-                                    <option value="<?= $escaper->escapeHtmlAttr($key) ?>">
-                                        <?= $escaper->escapeHtml($customerCard['brand'] . ' - ' . $customerCard['pan']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                </div>
+                <div id="hipay-saved-cards"></div>
             <?php endif; ?>
 
-            <div class="<?= $oneClickEnabled && $magewire->customerCardIsSelected ? 'hidden' : '' ?>">
+            <div class="<?= $oneClickEnabled ?>">
                 <div class="hipay-row cc-row" wire:ignore>
                     <div class="hipay-field-container">
                         <div class="hipay-field" id="hipay-card-holder"></div>
@@ -420,6 +409,7 @@ $customerCards = $configViewModel->getCustomerCards();
                     <div id="hipay-help-cvc"></div>
                 </div>
 
+                <div id="hipay-saved-card-button"></div>
                 <div class="field cc-row save-cc hidden" wire:ignore>
                     <div class="control">
                         <input
