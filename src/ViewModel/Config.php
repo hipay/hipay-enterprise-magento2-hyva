@@ -90,29 +90,10 @@ class Config implements ArgumentInterface
     {
         return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
     }
-
-    public function isPayPalV2(): bool
-    {
-        return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
-    }
-
+    
     public function isTOCEnabled(): bool
     {
         return (bool) $this->scopeConfig->isSetFlag('checkout/options/enable_agreements', ScopeInterface::SCOPE_STORE) ?? false;
     }
 
-    public function isPayPalV2(): bool
-    {
-        return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
-    }
-
-    public function isTOCEnabled(): bool
-    {
-        return (bool) $this->scopeConfig->isSetFlag('checkout/options/enable_agreements', ScopeInterface::SCOPE_STORE) ?? false;
-    }
-
-    public function isPayPalV2(): bool
-    {
-        return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
-    }
 }
