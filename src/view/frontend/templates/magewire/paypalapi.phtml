@@ -40,6 +40,11 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
                         hiPayPayPalConfig: <?= /* @noEscape */ $configViewModel->getSerializedPayPalConfig() ?>,
                         component: {},
+                        agreements: {
+                            enabled: <?= $escaper->escapeJs((int) $configViewModel->isTOCEnabled()); ?>,
+                            list: new Map(),
+                            allAgreementsChecked: false,
+                        },
                         async initialize() {
                             document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
                             const HIPAY_METHOD_PAYPAL_CONFIG = this.hiPayPayPalConfig.payment[HIPAY_METHOD_PAYPAL]
@@ -58,7 +63,7 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                                     locale: this._convertToUpperCaseAfterUnderscore(this.hiPayGeneralConfig.payment.hiPayFullservice.locale[HIPAY_METHOD_PAYPAL])
                                 }
                             };
-                            this._initComponent()
+                            this._initComponent();
                         },
 
                         _initComponent () {
