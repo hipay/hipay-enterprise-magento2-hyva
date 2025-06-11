@@ -10,7 +10,6 @@ use HiPay\FullserviceMagento\Model\Method\Providers\CcConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
 use Magento\Framework\Serialize\SerializerInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
-
 /**
  * HiPay Fullservice Magento - Hyvä Checkout
  *
@@ -31,7 +30,7 @@ class Config implements ArgumentInterface
         private SerializerInterface $serializer,
         private GenericConfigProvider $genericConfigProvider,
         private ApplepayConfigProvider $applepayConfigProvider,
-        private HipayConfig $hipayConfig,
+        private HipayConfig $hipayConfig
     ) {
     }
 
@@ -50,9 +49,17 @@ class Config implements ArgumentInterface
         return $this->hipayConfig->getEnv();
     }
 
-    public function getSerializedCreditCardConfig(): string
+    public function getSerializedCreditCardConfig($methodCode): string
     {
-        return $this->serializer->serialize($this->creditCardConfigProvider->getConfig());
+        $useOneClick =  $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode];
+        $selectedCard =  $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['selectedCard'];
+        $oneClickMaxCards = (int) $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['maxSavedCard'][$methodCode];;
+        $ccConfig = $this->creditCardConfigProvider->getConfig();
+        $ccConfig['payment']['hipay_hosted_fields']['selectedCard'] = $selectedCard;
+        $ccConfig['payment']['hipay_hosted_fields']['useOneClick'] = $useOneClick;
+        $ccConfig['payment']['hipay_hosted_fields']['oneClickMaxCards'] = $oneClickMaxCards;
+
+        return $this->serializer->serialize($ccConfig);
     }
 
     public function getSerializedApplePayConfig(): string
@@ -65,7 +72,7 @@ class Config implements ArgumentInterface
         return $this->serializer->serialize($this->genericConfigProvider->getConfig());
     }
 
-    public function getOneClickEnabled(string $methodCode): bool
+    public function getOneClickEnabled(string $methodCode)
     {
         return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode];
     }

@@ -28,7 +28,7 @@ use Magento\Framework\Escaper;
 $configViewModel = $viewModels->require(Config::class);
 $customerInfo = $magewire->getCustomerInformation();
 $oneClickEnabled = $configViewModel->getOneClickEnabled(HostedFieldsMethod::HIPAY_METHOD_CODE);
-$customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
+$customerCards = $configViewModel->getCustomerCards();
 ?>
 
 <div>
@@ -40,23 +40,15 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                 window.addEventListener('checkout:payment:method-activate', (event) => {
                     if (event.detail && event.detail.method === HIPAY_METHOD_HOSTED_FIELDS) {
                         hyvaCheckout.payment.activate(HIPAY_METHOD_HOSTED_FIELDS, {
-                            hiPayCcConfig: <?= /* @noEscape */ $configViewModel->getSerializedCreditCardConfig() ?>,
+                            hiPayCcConfig: <?= /* @noEscape */ $configViewModel->getSerializedCreditCardConfig(HostedFieldsMethod::HIPAY_METHOD_CODE) ?>,
                             hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
                             selectors: {},
                             component: {
                                 createOneclick: false,
-                                customerCards: [],
-                                showCcForm: true,
+                                showCcForm: false,
                                 env: '',
                                 apiUsernameTokenJs: '',
                                 apiPasswordTokenJs: '',
-                                color: '',
-                                fontFamily: '',
-                                fontSize: '',
-                                fontWeight: '',
-                                placeholderColor: '',
-                                caretColor: '',
-                                iconColor: '',
                                 locale: 'en',
                                 sdkJsUrl: '',
                                 hipayHostedFields: null,
@@ -64,6 +56,7 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                 hipayHFstatus: false,
                                 isPlaceOrderAllowed: false,
                                 placeOrderBtn: '',
+                                eci: '',
                             },
                             async initialize() {
                                 if (this.el !== null) {
@@ -74,13 +67,15 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                 }
                             },
                             _bindFields() {
-                                this.selectors.oneClickCheckbox.addEventListener('click', (event) => {
-                                    this._updateOneClick(event.currentTarget.checked);
+                                this.selectors.oneClickContainer.addEventListener('click', (event) => {
+                                    const oneClickCheckbox = this.selectors.oneClickContainer.querySelector('input[type="checkbox"]')
+                                    this._updateOneClick(oneClickCheckbox.checked);
                                 });
                             },
+
                             _initializeComponent() {
-                                const { hipay_hosted_fields } =  this.hiPayCcConfig.payment;
-                                const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
+                                const { hipay_hosted_fields } = this.hiPayCcConfig.payment;
+                                const { hiPayFullservice } = this.hiPayGeneralConfig.payment;
                                 this.component.placeOrderBtn = document.querySelector('.btn-place-order');
 
                                 if (hipay_hosted_fields) {
@@ -90,14 +85,27 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                             env: hipay_hosted_fields.env,
                                             apiUsernameTokenJs: hipay_hosted_fields.apiUsernameTokenJs,
                                             apiPasswordTokenJs: hipay_hosted_fields.apiPasswordTokenJs,
-                                            color: hipay_hosted_fields.color,
-                                            fontFamily: hipay_hosted_fields.fontFamily,
-                                            fontSize: hipay_hosted_fields.fontSize,
-                                            fontWeight: hipay_hosted_fields.fontWeight,
-                                            placeholderColor: hipay_hosted_fields.placeholderColor,
-                                            caretColor: hipay_hosted_fields.caretColor,
-                                            iconColor: hipay_hosted_fields.iconColor,
-                                            sdkJsUrl: hipay_hosted_fields.sdkJsUrl
+                                            sdkJsUrl: hipay_hosted_fields.sdkJsUrl,
+                                            oneClick: {
+                                                enabled: hipay_hosted_fields.useOneClick,
+                                                maxCard: hipay_hosted_fields.oneClickMaxCards,
+                                                selectedCard: '',
+                                            },
+                                            cardTypes: {
+                                                availableTypes: hipay_hosted_fields.availableTypes,
+                                                icons: hipay_hosted_fields.icons
+                                            },
+                                            style: {
+                                                color: hipay_hosted_fields.color,
+                                                fontFamily: hipay_hosted_fields.fontFamily,
+                                                fontSize: hipay_hosted_fields.fontSize,
+                                                fontWeight: hipay_hosted_fields.fontWeight,
+                                                placeholderColor: hipay_hosted_fields.placeholderColor,
+                                                caretColor: hipay_hosted_fields.caretColor,
+                                                iconColor: hipay_hosted_fields.iconColor,
+                                                oneClickHighlightColor: hipay_hosted_fields.oneClickHighlightColor,
+                                                oneClickToggleColor: hipay_hosted_fields.oneClickToggleColor,
+                                            }
                                         }
                                     }
                                 }
@@ -106,7 +114,6 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                     this.component = {
                                         ...this.component,
                                         ...{
-                                            customerCards: hiPayFullservice.customerCards,
                                             locale: hiPayFullservice.locale.hipay_hosted_fields,
                                             useOneClick: hiPayFullservice.useOneclick.hipay_hosted_fields
                                         }
@@ -114,19 +121,14 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                 }
 
                                 this.selectors = {
-                                    registeredCc: '',
-                                    saveCc: this.el.querySelector('.save-cc'),
-                                    oneClickCheckbox: this.el.querySelector('[name="payment[create_oneclick]"]')
+                                    oneClickContainer: document.querySelector('#hipay-saved-card-button')
                                 };
-
-                                if (this.component.createOneclick && this.component.customerCards.length) {
-                                    this.selectors.registeredCc = this.el.querySelector('.cc-registered-row')
-                                }
 
                                 if (this.component.placeOrderBtn) {
                                     this.component.placeOrderBtn.removeAttribute('disabled');
                                 }
                             },
+
                             _initializeFieldsData() {
                                 let customerFirstName = '',
                                     customerLastName = '';
@@ -140,10 +142,11 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
 
                                 this.component.configHipay = {
                                     selector: 'hipay-container-hosted-fields',
+                                    brand: this._getAvailableBrands(this.component.cardTypes.availableTypes),
                                     one_click: {
-                                        enabled: true,
-                                        cards_display_count: 5,
-                                        cards: <?= $customerCards ?>
+                                        enabled: this.component.oneClick.enabled,
+                                        cards_display_count: this.component.oneClick.maxCard,
+                                        cards: <?= json_encode($customerCards) ?>
                                     },
                                     fields: {
                                         savedCards: {
@@ -171,25 +174,36 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                     },
                                     styles: {
                                         base: {
-                                            fontFamily: this.component.fontFamily,
-                                            color: this.component.color,
-                                            fontSize: this.component.fontSize,
-                                            fontWeight: this.component.fontWeight,
-                                            placeholderColor: this.component.placeholderColor,
-                                            caretColor: this.component.caretColor,
-                                            iconColor: this.component.iconColor
+                                            fontFamily: this.component.style.fontFamily,
+                                            color: this.component.style.color,
+                                            fontSize: this.component.style.fontSize,
+                                            fontWeight: this.component.style.fontWeight,
+                                            placeholderColor: this.component.style.placeholderColor,
+                                            caretColor: this.component.style.caretColor,
+                                            iconColor: this.component.style.iconColor
                                         },
                                         components: {
                                             switch: {
-                                                mainColor: '#FF0000'
+                                                mainColor: this.component.style.oneClickToggleColor
                                             },
                                             checkbox: {
-                                                mainColor: '#FFF000'
+                                                mainColor: this.component.style.oneClickHighlightColor
                                             }
                                         },
                                     }
                                 };
                             },
+
+                            _customerHasCard: function () {
+                                let customerCards = <?= json_encode($customerCards) ?>;
+                                let availableBrands = this._getAvailableBrands(this.component.cardTypes.availableTypes);
+
+                                return (
+                                    customerCards.length > 0 &&
+                                    customerCards.some((card) => availableBrands.includes(card.brand))
+                                );
+                            },
+
                             _initHostedFields() {
                                 if (window.hipaySdk) {
                                     this._createHostedFields();
@@ -198,11 +212,52 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                     this._createHostedFields();
                                 }
                             },
+
+                            _getAvailableBrands(brand) {
+                                let result = new Set();
+
+                                Object.entries(brand).forEach(([key, value]) => {
+                                    switch (key) {
+                                        case 'VI':
+                                            result.add('visa');
+                                            result.add('cb');
+                                            break;
+                                        case 'MC':
+                                            result.add('mastercard');
+                                            break;
+                                        case 'AE':
+                                            result.add('american-express');
+                                            break;
+                                        case 'MI':
+                                            result.add('maestro');
+                                            result.add('bcmc');
+                                            break;
+                                    }
+                                });
+                                return Array.from(result);
+                            },
+
+                            _setupSavedCards: function () {
+                                const savedCardsContainer =
+                                    document.getElementById('hipay-saved-cards');
+                                if (savedCardsContainer &&
+                                    savedCardsContainer.querySelector('.saved-card')
+                                ) {
+                                    this._bindSavedCardsEvents();
+                                }
+                            },
+
                             _createHostedFields() {
                                 this.component.hipayHostedFields = window.hipaySdk.create('card', this.component.configHipay);
                                 this._bindHostedFields();
+                                this.showCcForm = !(this.component.oneClick.enabled && this._customerHasCard());
                             },
+
                             _bindHostedFields() {
+                                this.component.hipayHostedFields.on('ready', (data) => {
+                                    this._toggleCardForm();
+                                    this._setupSavedCards();
+                                })
                                 this.component.hipayHostedFields.on('change', (data) => {
                                     if (this.component.showCcForm) {
                                         if (!data.valid || data.error) {
@@ -252,6 +307,33 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                     }
                                 });
                             },
+
+                            _bindSavedCardsEvents () {
+                                const savedCards = document.querySelectorAll('#hipay-saved-cards .saved-card');
+                                savedCards.forEach((savedCard) => {
+                                    savedCard.removeEventListener('click',  this._selectCard)
+                                    savedCard.addEventListener('click', (e) => {
+                                        this._selectCard(e, savedCard)
+                                    })
+                                })
+                            },
+
+                            _selectCard (e, savedCard) {
+                                const $checkbox = savedCard.querySelector('input[type="checkbox"]');
+                                const ccForm = document.querySelector('.hipay-hosted-fields-form');
+
+                                if (!savedCard.querySelector('input[type="checkbox"]').checked) {
+                                    this.component.oneClick.selectedCard = $checkbox.getAttribute('id');
+                                    this.component.eci = this.hiPayGeneralConfig.payment.hiPayFullservice.recurringEci;
+                                    ccForm.style.display ="none";
+                                    this.showCcForm = false;
+                                } else {
+                                    this.component.eci = this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci;
+                                    ccForm.style.display = "block";
+                                    this.showCcForm = true;
+                                }
+                            },
+
                             _initHipaySdk() {
                                 let lang = 'en';
 
@@ -266,73 +348,80 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
                                     lang: lang
                                 });
                             },
+
                             _updateOneClick(state) {
                                 this.component.createOneclick = state;
                                 this.component.hipayHostedFields.setMultiUse(this.component.useOneClick && state);
                             },
+
+                            _toggleCardForm() {
+                                const payOtherCard = document.querySelector('#pay-other-card');
+                                const ccForm = document.querySelector('.hipay-hosted-fields-form');
+
+                                if (payOtherCard) {
+                                    payOtherCard.addEventListener('click', () => {
+                                        const selectedCard = document.querySelector('.saved-card.checked');
+                                        if (this.showCcForm) {
+                                            this.showCcForm = !this.showCcForm;
+                                            ccForm.style.display = 'none';
+                                           return;
+                                        }
+
+                                        if (selectedCard) {
+                                            selectedCard.click();
+                                        }
+
+                                        ccForm.style.display = 'block';
+                                        this.showCcForm = !this.showCcForm;
+                                    })
+                                }
+                            },
+
                             placeOrderViaJs() {
                                 return true;
                             },
+
                             async placeOrder() {
-                                const customerCardIsSelected = await Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).get('customerCardIsSelected');
+                                if (this.component.oneClick.selectedCard === '') {
+                                   this.component.eci = this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci
+                                }
 
-                                if (customerCardIsSelected) {
-                                    const selectedCustomerCard = Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).get('selectedCustomerCard');
-                                    const { card_holder, token, brand } = this.component.customerCards[selectedCustomerCard];
+                                this.component.hipayHostedFields.getPaymentData().then(
+                                    (response) => {
+                                        const { token, payment_product, device_fingerprint } = response;
+                                        if (response.one_click === true || response.multi_use === true) {
+                                            this.component.eci = this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci;
+                                        }
+                                        if (token && payment_product && device_fingerprint) {
+                                            const paymentData = {
+                                                additionalData: {
+                                                    create_oneclick: response.one_click,
+                                                    card_token: token,
+                                                    payment_product: response.payment_product,
+                                                    cc_owner: response.card_holder,
+                                                    card_pan: response.pan,
+                                                    card_expiry_month: response.card_expiry_month,
+                                                    card_expiry_year: response.card_expiry_year,
+                                                    card_multi_use: response.multi_use,
+                                                    eci: this.component.eci,
+                                                    cc_type: response.payment_product,
+                                                    fingerprint: device_fingerprint
+                                                },
+                                            }
 
-                                    const paymentData = {
-                                        ccType: brand,
-                                        additionalData: {
-                                            payment_product: brand,
-                                            card_multi_use: false,
-                                            card_token: token,
-                                            eci: this.hiPayGeneralConfig.payment.hiPayFullservice.recurringEci,
-                                            cc_type: brand,
-                                            fingerprint: window.hipaySdk.getDeviceFingerprint(),
-                                            cc_owner: card_holder,
-                                            browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo())
+                                            Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).call('setPaymentData', paymentData).then(() => {
+                                             hyvaCheckout.main.getWireComponent().placeOrder();
+                                            });
+                                        } else {
+                                            throw response.error;
+                                        }
+                                    },
+                                    (errors) => {
+                                        for (let error in errors) {
+                                            throw errors[error].error;
                                         }
                                     }
-
-                                    Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).call('setPaymentData', paymentData).then(() => {
-                                        hyvaCheckout.main.getWireComponent().placeOrder();
-                                    });
-                                } else {
-                                    this.component.hipayHostedFields.getPaymentData().then(
-                                        (response) => {
-                                            const { token, payment_product, device_fingerprint } = response;
-
-                                            if (token && payment_product && device_fingerprint) {
-                                                const paymentData = {
-                                                    ccType: response.payment_product,
-                                                    additionalData: {
-                                                        card_multi_use: this.component.createOneclick,
-                                                        eci: this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci,
-                                                        fingerprint: device_fingerprint,
-                                                        browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo()),
-                                                        card_token: token,
-                                                        cc_type: response.payment_product,
-                                                        card_expiry_year: response.card_expiry_year,
-                                                        card_expiry_month: response.card_expiry_month,
-                                                        cc_owner:response.card_holder,
-                                                        card_pan: response.pan,
-                                                    },
-                                                }
-
-                                                Magewire.find(HIPAY_METHOD_HOSTED_FIELDS_WIRE_ID).call('setPaymentData', paymentData).then(() => {
-                                                      hyvaCheckout.main.getWireComponent().placeOrder();
-                                                });
-                                            } else {
-                                                throw response.error;
-                                            }
-                                        },
-                                        (errors) => {
-                                            for (let error in errors) {
-                                                throw errors[error].error;
-                                            }
-                                        }
-                                    );
-                                }
+                                );
                             }
                         }, document.getElementById('hipay-container-hosted-fields'));
                     }
@@ -347,13 +436,16 @@ $customerCards = json_encode($configViewModel->getCustomerCards() ?? []);
     <div
         class="form hosted-fields-form"
         id="co-transparent-form">
-        <div id="hipay-container-hosted-fields" class="bg-white">
+        <div id="hipay-container-hosted-fields" class="bg-white !w-full">
 
             <?php if ($oneClickEnabled && $customerCards): ?>
                 <div id="hipay-saved-cards"></div>
             <?php endif; ?>
 
-            <div class="<?= $oneClickEnabled ?>">
+            <div class="hipay-hosted-fields-form"
+            <?php if ($oneClickEnabled && $customerCards): ?>
+                style="display: none"
+            <?php endif; ?>>
                 <div class="hipay-row cc-row" wire:ignore>
                     <div class="hipay-field-container">
                         <div class="hipay-field" id="hipay-card-holder"></div>
