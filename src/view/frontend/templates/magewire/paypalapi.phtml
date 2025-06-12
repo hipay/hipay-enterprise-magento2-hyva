@@ -63,7 +63,7 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                                 },
                                 request: {
                                     amount: this._safeToFixed(<?= $magewire->getQuoteInformations()['base_total']; ?>),
-                                    currency: '<?= $magewire->getQuoteInformations()['currency_code']; ?>'',
+                                    currency: '<?= $escaper->escapeJs($magewire->getQuoteInformations()['currency_code']); ?>',
                                     locale: this._convertToUpperCaseAfterUnderscore(this.hiPayGeneralConfig.payment.hiPayFullservice.locale[HIPAY_METHOD_PAYPAL])
                                 }
                             }
@@ -95,7 +95,7 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         },
 
                         _convertToUpperCaseAfterUnderscore (str) {
-                           return str.replace(/_(\w+)/, (_, match) => `_${match.toUpperCase()}`)
+                            return str.replace(/_(\w+)/, (_, match) => `_${match.toUpperCase()}`)
                         },
 
                         _initTOCEvents: function () {
@@ -152,27 +152,29 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                             return true;
                         },
 
-                        _paymentAuthorized: async function(tokenHipay) {
+                        async _paymentAuthorized (tokenHipay) {
                             const isValid = await hyvaCheckout.validation.validate();
 
                             if (!isValid) {
                                 return;
                             }
 
-                            const paymentData = {
+                            Magewire.find(HIPAY_METHOD_PAYPAL_WIRE_ID)
+                                .call('setPaymentData', this._getPaymentData(tokenHipay))
+                                .then(() => {
+                                    hyvaCheckout.main.getWireComponent().placeOrder()
+                                });
+                        },
+
+                        _getPaymentData (tokenHipay) {
+                            return {
                                 additionalData: {
                                     paypal_order_id: tokenHipay.orderID,
                                     browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo()),
                                     redirectUrl: this.component.afterPlaceOrderUrl
                                 }
                             }
-
-                            Magewire.find(HIPAY_METHOD_PAYPAL_WIRE_ID)
-                                .call('setPaymentData', paymentData)
-                                .then(() => {
-                                    hyvaCheckout.main.getWireComponent().placeOrder()
-                                });
-                        },
+                        }
                     });
                 }
             }
