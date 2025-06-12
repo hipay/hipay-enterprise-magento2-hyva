@@ -1,0 +1,7 @@
+#hipay-saved-cards .hipay-field-container {
+    @apply flex flex-col;
+}
+
+#hipay-saved-cards .hipay-field-container input[type="checkbox"] {
+    @apply hidden;
+}

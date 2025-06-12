@@ -51,9 +51,10 @@ class Config implements ArgumentInterface
 
     public function getSerializedCreditCardConfig($methodCode): string
     {
-        $useOneClick =  $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode];
-        $selectedCard =  $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['selectedCard'];
-        $oneClickMaxCards = (int) $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['maxSavedCard'][$methodCode];;
+        $genericConfig = $this->genericConfigProvider->getConfig();
+        $useOneClick =  $genericConfig['payment']['hiPayFullservice']['useOneclick'][$methodCode] ?? false;
+        $selectedCard =  $genericConfig['payment']['hiPayFullservice']['selectedCard'] ?? [];
+        $oneClickMaxCards = (int) $genericConfig['payment']['hiPayFullservice']['maxSavedCard'][$methodCode] ?? 0;
         $ccConfig = $this->creditCardConfigProvider->getConfig();
         $ccConfig['payment']['hipay_hosted_fields']['selectedCard'] = $selectedCard;
         $ccConfig['payment']['hipay_hosted_fields']['useOneClick'] = $useOneClick;
@@ -72,9 +73,9 @@ class Config implements ArgumentInterface
         return $this->serializer->serialize($this->genericConfigProvider->getConfig());
     }
 
-    public function getOneClickEnabled(string $methodCode)
+    public function getOneClickEnabled(string $methodCode): bool
     {
-        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode];
+        return (bool) ($this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode] ?? false);
     }
 
     public function getCustomerCards(): array
