@@ -85,22 +85,6 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                             this._initHipaySdk();
                             this._initTOCEvents();
                             this._initHostedFields();
-                            this._disablePlaceOrderButton();
-                        },
-
-                        _disablePlaceOrderButton: function () {
-                            const observer = new MutationObserver((mutations, obs) => {
-                                const placeOrder = document.querySelector(".btn-place-order");
-                                if (placeOrder) {
-                                    placeOrder.setAttribute('disabled','disabled');
-                                    obs.disconnect();
-                                }
-                            });
-
-                            observer.observe(document.body, {
-                                childList: true,
-                                subtree: true
-                            });
                         },
 
                         _safeToFixed (value, decimals = 2) {
@@ -178,6 +162,13 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                                 this._paymentAuthorized(token);
                             });
 
+                            this.hipayHostedFields.on('ready', (token) => {
+                                const placeOrder = document.querySelector('.btn-place-order');
+                                if (placeOrder) {
+                                    placeOrder.setAttribute('disabled','disabled');
+                                }
+                            });
+
                             return true;
                         },
 
@@ -217,7 +208,7 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
     </div>
 <?php else: ?>
     <?php if ((int) $configViewModel->isTOCEnabled()): ?>
-        <span id="paypal-agreements-warning"><?= __('Please accept all terms & conditions'); ?></span>
+        <span id="paypal-agreements-warning"><?= $escaper->escapeHtml(__('Please accept all terms & conditions')); ?></span>
     <?php endif ?>
     <div id="paypal-field" class="!w-2/3 pr-4 mx-auto"></div>
 <?php endif; ?>
