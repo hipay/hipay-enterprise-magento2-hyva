@@ -29,22 +29,29 @@ class PayPalMethod extends Component
     public array $customerInformation = [];
 
     public function __construct(
-        private Session $checkoutSession
+        private Session $checkoutSession,
+        private CartRepositoryInterface $quoteRepository,
     ) { }
+
+    public function getQuoteInformations(): array
+    {
+        $quote = $this->checkoutSession->getQuote();
+        return [
+            'currency_code' => $quote->getQuoteCurrencyCode(),
+            'base_total' => $quote->getGrandTotal(),
+        ];
+    }
 
     /**
      * @throws LocalizedException
      * @throws NoSuchEntityException
      */
-    public function mount(): void
+    public function setPaymentData(array $value): void
     {
         $quote = $this->checkoutSession->getQuote();
-        $billingAddress = $quote->getBillingAddress();
-        if ($billingAddress) {
-            $this->customerInformation = [
-                'firstName' => $billingAddress->getFirstname(),
-                'lastName' => $billingAddress->getLastname(),
-            ];
-        }
+        $payment = $quote->getPayment();
+        $payment->setAdditionalInformation($value['additionalData'] ?? null);
+        $quote->setPayment($payment);
+        $this->quoteRepository->save($quote);
     }
 }
