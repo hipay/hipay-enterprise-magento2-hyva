@@ -13,7 +13,6 @@ use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Serialize\SerializerInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
-use Magento\Store\Model\ScopeInterface;
 /**
  * HiPay Fullservice Magento - Hyvä Checkout
  *
@@ -56,9 +55,18 @@ class Config implements ArgumentInterface
         return $this->hipayConfig->getEnv();
     }
 
-    public function getSerializedCreditCardConfig(): string
+    public function getSerializedCreditCardConfig($methodCode): string
     {
-        return $this->serializer->serialize($this->creditCardConfigProvider->getConfig());
+        $genericConfig = $this->genericConfigProvider->getConfig();
+        $useOneClick =  $genericConfig['payment']['hiPayFullservice']['useOneclick'][$methodCode] ?? false;
+        $selectedCard =  $genericConfig['payment']['hiPayFullservice']['selectedCard'] ?? [];
+        $oneClickMaxCards = (int) $genericConfig['payment']['hiPayFullservice']['maxSavedCard'][$methodCode] ?? 0;
+        $ccConfig = $this->creditCardConfigProvider->getConfig();
+        $ccConfig['payment']['hipay_hosted_fields']['selectedCard'] = $selectedCard;
+        $ccConfig['payment']['hipay_hosted_fields']['useOneClick'] = $useOneClick;
+        $ccConfig['payment']['hipay_hosted_fields']['oneClickMaxCards'] = $oneClickMaxCards;
+
+        return $this->serializer->serialize($ccConfig);
     }
 
     public function getSerializedApplePayConfig(): string
@@ -78,7 +86,7 @@ class Config implements ArgumentInterface
 
     public function getOneClickEnabled(string $methodCode): bool
     {
-        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode];
+        return (bool) ($this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode] ?? false);
     }
 
     public function getCustomerCards(): array

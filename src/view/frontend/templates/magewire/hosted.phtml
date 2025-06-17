@@ -40,7 +40,7 @@ $customerCards = $configViewModel->getCustomerCards();
                     if (event.detail && event.detail.method === HIPAY_METHOD_HOSTED) {
                         hyvaCheckout.payment.activate(HIPAY_METHOD_HOSTED, {
                             hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
-                            hiPayCcConfig: <?= /* @noEscape */ $configViewModel->getSerializedCreditCardConfig() ?>,
+                            hiPayCcConfig: <?= /* @noEscape */ $configViewModel->getSerializedCreditCardConfig(HostedMethod::HIPAY_METHOD_CODE) ?>,
                             selectors: {},
                             component: {
                                 afterPlaceOrderUrl: '',

@@ -71,7 +71,6 @@ class CardMethod extends Component
         $quote = $this->checkoutSession->getQuote();
         $payment = $quote->getPayment();
         $payment->setAdditionalInformation($value['additionalData'] ?? null);
-        $payment->setCcType($value['ccType'] ?? null);
         $quote->setPayment($payment);
         $this->quoteRepository->save($quote);
     }
@@ -87,12 +86,5 @@ class CardMethod extends Component
         $payment->setAdditionalInformation($key, $value);
         $quote->setPayment($payment);
         $this->quoteRepository->save($quote);
-    }
-
-    public function updatingSelectedCustomerCard(?string $value): ?string
-    {
-        $this->customerCardIsSelected = strlen($value) > 0;
-
-        return $value;
     }
 }
