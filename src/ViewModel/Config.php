@@ -7,7 +7,10 @@ namespace HiPay\FullserviceHyvaCheckout\ViewModel;
 use HiPay\FullserviceMagento\Block\Adminhtml\HipayConfig;
 use HiPay\FullserviceMagento\Model\Method\Providers\ApplepayConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\CcConfigProvider;
+use HiPay\FullserviceMagento\Model\Method\Providers\PaypalConfigProvider as GeneralPaypalConfigProvider;
+use HiPay\FullserviceMagento\Model\PaypalConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
+use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Serialize\SerializerInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
 /**
@@ -30,7 +33,9 @@ class Config implements ArgumentInterface
         private SerializerInterface $serializer,
         private GenericConfigProvider $genericConfigProvider,
         private ApplepayConfigProvider $applepayConfigProvider,
-        private HipayConfig $hipayConfig
+        private GeneralPaypalConfigProvider $generalPaypalConfigProvider,
+        private PaypalConfigProvider $payPalConfigProvider,
+        private HipayConfig $hipayConfig,
     ) {
     }
 
@@ -68,6 +73,11 @@ class Config implements ArgumentInterface
         return $this->serializer->serialize($this->applepayConfigProvider->getConfig());
     }
 
+    public function getSerializedPayPalConfig(): string
+    {
+        return $this->serializer->serialize($this->generalPaypalConfigProvider->getConfig());
+    }
+
     public function getSerializedConfig(): string
     {
         return $this->serializer->serialize($this->genericConfigProvider->getConfig());
@@ -80,6 +90,11 @@ class Config implements ArgumentInterface
 
     public function getCustomerCards(): array
     {
-        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['customerCards'];
+        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['customerCards'] ?? [];
+    }
+
+    public function isPayPalV2(): bool
+    {
+        return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
     }
 }
