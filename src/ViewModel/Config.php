@@ -36,7 +36,6 @@ class Config implements ArgumentInterface
         private GeneralPaypalConfigProvider $generalPaypalConfigProvider,
         private PaypalConfigProvider $payPalConfigProvider,
         private HipayConfig $hipayConfig,
-        private ScopeConfigInterface $scopeConfig,
     ) {
     }
 
