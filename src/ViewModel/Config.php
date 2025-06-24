@@ -13,6 +13,7 @@ use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Serialize\SerializerInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
+use Magento\Store\Model\ScopeInterface;
 /**
  * HiPay Fullservice Magento - Hyvä Checkout
  *
@@ -36,6 +37,7 @@ class Config implements ArgumentInterface
         private GeneralPaypalConfigProvider $generalPaypalConfigProvider,
         private PaypalConfigProvider $payPalConfigProvider,
         private HipayConfig $hipayConfig,
+        private ScopeConfigInterface $scopeConfig,
     ) {
     }
 
