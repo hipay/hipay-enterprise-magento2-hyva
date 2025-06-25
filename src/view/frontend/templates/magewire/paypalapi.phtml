@@ -34,7 +34,6 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
         const HIPAY_METHOD_PAYPAL = '<?= $escaper->escapeJs(Paypal::HIPAY_METHOD_CODE) ?>';
         window.addEventListener('checkout:payment:method-activate', (event) => {
             if (event.detail && event.detail.method === HIPAY_METHOD_PAYPAL) {
-                document.querySelector('.btn-place-order').removeAttribute('disabled');
                 if (<?= $escaper->escapeJs((int) $isPayPalV2); ?>) {
                     hyvaCheckout.payment.activate(HIPAY_METHOD_PAYPAL, {
                         hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
@@ -48,8 +47,6 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         },
 
                         async initialize() {
-                            document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
-
                             const HIPAY_METHOD_PAYPAL_CONFIG = this.hiPayPayPalConfig.payment[HIPAY_METHOD_PAYPAL]
                             this.paypalConfig = {
                                 template: 'auto',
@@ -101,6 +98,12 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         _initTOCEvents: function () {
                             if (this.agreements.enabled) {
                                 this._initPaypalEvents();
+
+                                const paypalAgreementsWarning = document.querySelector('#paypal-agreements-warning');
+
+                                if (paypalAgreementsWarning) {
+                                    paypalAgreementsWarning.style.display = "none";
+                                }
                             }
                         },
 
@@ -151,8 +154,6 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                         },
 
                         _initHostedFields: function () {
-                            document.querySelector('#paypal-agreements-warning').style.display = "none";
-
                             this.hipayHostedFields = window.hipaySdk.create(
                                 'paypal',
                                 this.paypalConfig
@@ -196,6 +197,8 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                             }
                         }
                     });
+                } else {
+                    document.querySelector('.btn-place-order').removeAttribute('disabled');
                 }
             }
         });
