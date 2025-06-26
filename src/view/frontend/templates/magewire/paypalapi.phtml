@@ -112,8 +112,10 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                             if (agreements.length) {
                                 agreements.forEach((input, index) => {
                                     this.agreements.list.set(index, false);
-                                    input.addEventListener('change', (event) => {
-                                        this.agreements.list.set(index, event.target.checked);
+
+                                    window.addEventListener('checkbox-updated',  (event) => {
+                                        const { checked } = event.detail;
+                                        this.agreements.list.set(index, checked);
                                         this._updateTOCState();
                                     });
                                 });
