@@ -45,7 +45,7 @@ $customerCards = $configViewModel->getCustomerCards();
                             selectors: {},
                             component: {
                                 createOneclick: false,
-                                showCcForm: false,
+                                showCcForm: true,
                                 env: '',
                                 apiUsernameTokenJs: '',
                                 apiPasswordTokenJs: '',
@@ -251,13 +251,14 @@ $customerCards = $configViewModel->getCustomerCards();
                             _createHostedFields() {
                                 this.component.hipayHostedFields = window.hipaySdk.create('card', this.component.configHipay);
                                 this._bindHostedFields();
-                                this.showCcForm = !(this.component.oneClick.enabled && this._customerHasCard());
+                                this.showCcForm = this.component.oneClick.enabled && this._customerHasCard();
                             },
 
                             _bindHostedFields() {
                                 this.component.hipayHostedFields.on('ready', (data) => {
                                     this._toggleCardForm();
                                     this._setupSavedCards();
+                                    document.querySelector('#pay-other-card').click();
                                 });
 
                                 this.component.hipayHostedFields.on('change', (data) => {
@@ -319,18 +320,19 @@ $customerCards = $configViewModel->getCustomerCards();
 
                             _selectCard (e, savedCard) {
                                 const $checkbox = savedCard.querySelector('input[type="checkbox"]');
-                                const ccForm = document.querySelector('.hipay-hosted-fields-form');
+                                const selectedCard = document.querySelector('.saved-card.checked');
 
                                 if (!savedCard.querySelector('input[type="checkbox"]').checked) {
                                     this.component.oneClick.selectedCard = $checkbox.getAttribute('id');
                                     this.component.eci = this.hiPayGeneralConfig.payment.hiPayFullservice.recurringEci;
-                                    ccForm.style.display ="none";
-                                    this.showCcForm = false;
                                 } else {
                                     this.component.eci = this.hiPayGeneralConfig.payment.hiPayFullservice.defaultEci;
-                                    ccForm.style.display = "block";
-                                    this.showCcForm = true;
                                 }
+
+                                if (!selectedCard && this.showCcForm) {
+                                    document.querySelector('#pay-other-card').click();
+                                }
+
                             },
 
                             _initHipaySdk() {
@@ -438,10 +440,7 @@ $customerCards = $configViewModel->getCustomerCards();
                 <div id="hipay-saved-cards"></div>
             <?php endif; ?>
 
-            <div class="hipay-hosted-fields-form"
-            <?php if ($oneClickEnabled && $customerCards): ?>
-                style="display: none"
-            <?php endif; ?>>
+            <div class="hipay-hosted-fields-form">
                 <div class="hipay-row cc-row" wire:ignore>
                     <div class="hipay-field-container">
                         <div class="hipay-field" id="hipay-card-holder"></div>
