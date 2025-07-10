@@ -185,7 +185,18 @@ $isPayPalV2 = $configViewModel->isPayPalV2();
                             Magewire.find(HIPAY_METHOD_PAYPAL_WIRE_ID)
                                 .call('setPaymentData', this._getPaymentData(tokenHipay))
                                 .then(() => {
-                                    hyvaCheckout.main.getWireComponent().placeOrder()
+                                    const paypalIframe = document.querySelector('#paypal-field iframe');
+                                    hyvaCheckout.main.getWireComponent()
+                                        .placeOrder()
+                                        .then(() => {
+                                            if (paypalIframe) {
+                                                paypalIframe.style.display = 'none';
+                                            }
+                                        }).catch(()=> {
+                                            if (paypalIframe) {
+                                                paypalIframe.style.display = 'block';
+                                            }
+                                        });
                                 });
                         },
 
