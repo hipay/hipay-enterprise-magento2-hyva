@@ -7,10 +7,13 @@ namespace HiPay\FullserviceHyvaCheckout\ViewModel;
 use HiPay\FullserviceMagento\Block\Adminhtml\HipayConfig;
 use HiPay\FullserviceMagento\Model\Method\Providers\ApplepayConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\CcConfigProvider;
+use HiPay\FullserviceMagento\Model\Method\Providers\PaypalConfigProvider as GeneralPaypalConfigProvider;
+use HiPay\FullserviceMagento\Model\PaypalConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
+use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Serialize\SerializerInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
-
+use Magento\Store\Model\ScopeInterface;
 /**
  * HiPay Fullservice Magento - Hyvä Checkout
  *
@@ -31,7 +34,10 @@ class Config implements ArgumentInterface
         private SerializerInterface $serializer,
         private GenericConfigProvider $genericConfigProvider,
         private ApplepayConfigProvider $applepayConfigProvider,
+        private GeneralPaypalConfigProvider $generalPaypalConfigProvider,
+        private PaypalConfigProvider $payPalConfigProvider,
         private HipayConfig $hipayConfig,
+        private ScopeConfigInterface $scopeConfig,
     ) {
     }
 
@@ -50,14 +56,28 @@ class Config implements ArgumentInterface
         return $this->hipayConfig->getEnv();
     }
 
-    public function getSerializedCreditCardConfig(): string
+    public function getSerializedCreditCardConfig($methodCode): string
     {
-        return $this->serializer->serialize($this->creditCardConfigProvider->getConfig());
+        $genericConfig = $this->genericConfigProvider->getConfig();
+        $useOneClick =  $genericConfig['payment']['hiPayFullservice']['useOneclick'][$methodCode] ?? false;
+        $selectedCard =  $genericConfig['payment']['hiPayFullservice']['selectedCard'] ?? [];
+        $oneClickMaxCards = (int) $genericConfig['payment']['hiPayFullservice']['maxSavedCard'][$methodCode] ?? 0;
+        $ccConfig = $this->creditCardConfigProvider->getConfig();
+        $ccConfig['payment']['hipay_hosted_fields']['selectedCard'] = $selectedCard;
+        $ccConfig['payment']['hipay_hosted_fields']['useOneClick'] = $useOneClick;
+        $ccConfig['payment']['hipay_hosted_fields']['oneClickMaxCards'] = $oneClickMaxCards;
+
+        return $this->serializer->serialize($ccConfig);
     }
 
     public function getSerializedApplePayConfig(): string
     {
         return $this->serializer->serialize($this->applepayConfigProvider->getConfig());
+    }
+
+    public function getSerializedPayPalConfig(): string
+    {
+        return $this->serializer->serialize($this->generalPaypalConfigProvider->getConfig());
     }
 
     public function getSerializedConfig(): string
@@ -67,11 +87,22 @@ class Config implements ArgumentInterface
 
     public function getOneClickEnabled(string $methodCode): bool
     {
-        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode];
+        return (bool) ($this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['useOneclick'][$methodCode] ?? false);
     }
 
     public function getCustomerCards(): array
     {
-        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['customerCards'];
+        return $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['customerCards'] ?? [];
     }
+
+    public function isPayPalV2(): bool
+    {
+        return (bool) $this->payPalConfigProvider->getConfig()['payment']['hipay_paypalapi']['isPayPalV2'] ?? false;
+    }
+
+    public function isTOCEnabled(): bool
+    {
+        return (bool) $this->scopeConfig->isSetFlag('checkout/options/enable_agreements', ScopeInterface::SCOPE_STORE) ?? false;
+    }
+
 }

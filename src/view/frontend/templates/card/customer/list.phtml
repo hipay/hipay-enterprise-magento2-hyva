@@ -1,0 +1,117 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+declare(strict_types=1);
+
+use HiPay\FullserviceMagento\Block\Card\Customer\ListCard;
+use HiPay\FullserviceMagento\Model\Card;
+use Magento\Framework\Escaper;
+
+/** @var ListCard $block */
+/** @var Card $_card */
+/** @var Escaper $escaper */
+?>
+
+<?php if ($block->getCards() && count($block->getCards())): ?>
+    <script>
+        function deleteCardComponent() {
+            return {
+                deleteUrlPrefix: "<?= $escaper->escapeUrl($block->getDeleteCardLink()); ?>id/",
+                selectedCardId: null,
+                modal: null,
+
+                openModal(cardId) {
+                    this.selectedCardId = cardId;
+                    this.modal = document.getElementById('delete-confirmation-modal');
+                    if (this.modal) {
+                        this.modal.showModal();
+                    }
+                },
+
+                confirmDelete() {
+                    if (this.selectedCardId) {
+                        window.location.href = this.deleteUrlPrefix + this.selectedCardId;
+                    }
+                }
+            };
+        }
+    </script>
+
+    <div class="table-wrapper cards" x-data="deleteCardComponent()">
+        <table class="data table table-cards w-full" id="my-cards-table">
+            <caption class="table-caption"><?php $escaper->escapeHtml(__('Credit cards')); ?></caption>
+            <thead>
+            <tr>
+                <th scope="col" class="col item text-left"><?= $escaper->escapeHtml(__('Card name')); ?></th>
+                <th scope="col" class="col item text-left"><?= $escaper->escapeHtml(__('Exp. Date')); ?></th>
+                <th scope="col" class="col item text-left"><?= $escaper->escapeHtml(__('Card Number')); ?></th>
+                <th scope="col" class="col actions"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($block->getCards() as $_card): ?>
+                <tr>
+                    <td data-th="<?= $escaper->escapeHtml(__('Card name')) ?>" class="col item"><?= $escaper->escapeHtml($_card->getName()) ?></td>
+                    <td data-th="<?= $escaper->escapeHtml(__('Exp. Date')) ?>" class="col item"><?= $escaper->escapeHtml($_card->getCcExpMonth()) . "/" . $escaper->escapeHtml($_card->getCcExpYear())  ?></td>
+                    <td data-th="<?= $escaper->escapeHtml(__('Card Number')) ?>" class="col item"><?= $escaper->escapeHtml($_card->getCcNumberEnc()) ?></td>
+                    <td data-th="<?= $escaper->escapeHtml(__('Actions')) ?>" class="col actions">
+                        <button
+                            class="btn btn-danger ml-auto"
+                            @click="openModal(<?= $_card->getId();?>)"
+                        >
+                            <?= $escaper->escapeHtml(__('Delete')); ?>
+                        </button>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <dialog id="delete-confirmation-modal" class="modal p-4 rounded" x-ref="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg"><?= $escaper->escapeHtml(__('Confirmation Required')); ?></h3>
+                <p class="py-4">
+                    <?= $escaper->escapeHtml(__('Are you sure you want to delete this card?')); ?>
+                </p>
+                <div class="modal-action flex flex-row">
+                    <form method="dialog">
+                        <button class="btn"><?= $escaper->escapeHtml(__('Cancel')); ?></button>
+                    </form>
+                    <button class="btn btn-error ml-2" @click="confirmDelete()">
+                        <?= $escaper->escapeHtml(__('Delete')); ?>
+                    </button>
+                </div>
+            </div>
+        </dialog>
+    </div>
+    <?php if ($block->getToolbarHtml()): ?>
+        <div class="toolbar products-cards-toolbar bottom">
+            <?= $block->getToolbarHtml() ?>
+        </div>
+    <?php endif; ?>
+<?php else: ?>
+    <div class="message info empty">
+        <span>
+            <?= $escaper->escapeHtml(__('You have recorded no cards.')); ?>
+        </span>
+    </div>
+<?php endif; ?>
+<div class="actions-toolbar">
+    <div class="secondary">
+        <a class="action back" href="<?= $escaper->escapeUrl($block->getBackUrl()); ?>">
+            <span><?= $escaper->escapeHtml(__('Back')); ?></span>
+        </a>
+    </div>
+</div>
+

@@ -59,7 +59,11 @@
             </block>
             <block name="checkout.payment.method.hipay_paypalapi"
                    as="hipay_paypalapi"
-                   template="HiPay_FullserviceHyvaCheckout::magewire/paypalapi.phtml" />
+                   template="HiPay_FullserviceHyvaCheckout::magewire/paypalapi.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">\HiPay\FullserviceHyvaCheckout\Magewire\PayPalMethod</argument>
+                </arguments>
+            </block>
         </referenceBlock>
     </body>
 </page>
