@@ -63,16 +63,21 @@ $quoteInfo = $magewire->getQuoteInformation();
                         async initialize() {
                             this._initializeComponent();
 
+                            const applePayMessage = document.getElementById('applepay-message');
                             if (await this._isApplePayAllowed()) {
                                 this._initApplePay();
-                                document.getElementById('applepay-message').remove();
+                                if (applePayMessage.length > 0) {
+                                    applePayMessage.remove();
+                                }
                             } else {
                                 if (this.el) {
                                     this.el.remove();
-                                    document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
-                                    document.getElementById('applepay-message').classList.remove('hidden');
+                                    if (applePayMessage.length > 0) {
+                                        applePayMessage.classList.remove('hidden');
+                                    }
                                 }
                             }
+                            document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
                         },
                         _initializeComponent() {
                             const {hipay_applepay} = this.hiPayApplePayConfig.payment;
