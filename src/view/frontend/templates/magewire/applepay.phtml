@@ -66,13 +66,13 @@ $quoteInfo = $magewire->getQuoteInformation();
                             const applePayMessage = document.getElementById('applepay-message');
                             if (await this._isApplePayAllowed()) {
                                 this._initApplePay();
-                                if (applePayMessage.length > 0) {
+                                if (applePayMessage) {
                                     applePayMessage.remove();
                                 }
                             } else {
                                 if (this.el) {
                                     this.el.remove();
-                                    if (applePayMessage.length > 0) {
+                                    if (applePayMessage) {
                                         applePayMessage.classList.remove('hidden');
                                     }
                                 }
