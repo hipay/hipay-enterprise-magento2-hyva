@@ -258,7 +258,10 @@ $customerCards = $configViewModel->getCustomerCards();
                                 this.component.hipayHostedFields.on('ready', (data) => {
                                     this._toggleCardForm();
                                     this._setupSavedCards();
-                                    document.querySelector('#pay-other-card').click();
+                                    const payOtherCard = document.querySelector('#pay-other-card');
+                                    if (payOtherCard) {
+                                        payOtherCard.click();
+                                    }
                                 });
 
                                 this.component.hipayHostedFields.on('change', (data) => {
@@ -330,7 +333,10 @@ $customerCards = $configViewModel->getCustomerCards();
                                 }
 
                                 if (!selectedCard && this.showCcForm) {
-                                    document.querySelector('#pay-other-card').click();
+                                    const payOtherCard = document.querySelector('#pay-other-card');
+                                    if (payOtherCard) {
+                                        payOtherCard.click();
+                                    }
                                 }
 
                             },
