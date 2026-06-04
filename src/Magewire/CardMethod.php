@@ -26,21 +26,45 @@ use Magewirephp\Magewire\Component;
  */
 class CardMethod extends Component
 {
+    /**
+     * Customer identity data used to prefill HiPay hosted fields.
+     *
+     * @var array{firstName?: string, lastName?: string}
+     */
     public array $customerInformation = [];
 
+    /**
+     * Saved customer cards exposed to the Hyva payment templates.
+     *
+     * @var array<int|string, array<string, mixed>>
+     */
     public array $customerCards = [];
 
+    /**
+     * @var string
+     */
     public string $selectedCustomerCard = '';
 
+    /**
+     * @var bool
+     */
     public bool $customerCardIsSelected = false;
 
+    /**
+     * @param CartRepositoryInterface $quoteRepository
+     * @param GenericConfigProvider $genericConfigProvider
+     * @param Session $checkoutSession
+     */
     public function __construct(
         private CartRepositoryInterface $quoteRepository,
         private GenericConfigProvider $genericConfigProvider,
         private Session $checkoutSession
-    ) { }
+    ) {
+    }
 
     /**
+     * Initialize customer data and saved cards for hosted and hosted-fields methods.
+     *
      * @throws LocalizedException
      * @throws NoSuchEntityException
      */
@@ -48,11 +72,13 @@ class CardMethod extends Component
     {
         $quote = $this->checkoutSession->getQuote();
         $billingAddress = $quote->getBillingAddress();
-        $this->customerCards = $this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['customerCards'];
+        $paymentConfig = $this->genericConfigProvider->getConfig()['payment'] ?? [];
+        $this->customerCards = $paymentConfig['hiPayFullservice']['customerCards'] ?? [];
+
         if ($billingAddress) {
             $this->customerInformation = [
-                'firstName' => $billingAddress->getFirstname(),
-                'lastName' => $billingAddress->getLastname(),
+                'firstName' => (string) $billingAddress->getFirstname(),
+                'lastName' => (string) $billingAddress->getLastname(),
             ];
         }
 
@@ -63,6 +89,9 @@ class CardMethod extends Component
     }
 
     /**
+     * Persist payment data on the active quote payment.
+     *
+     * @param array $value
      * @throws LocalizedException
      * @throws NoSuchEntityException
      */
@@ -71,19 +100,6 @@ class CardMethod extends Component
         $quote = $this->checkoutSession->getQuote();
         $payment = $quote->getPayment();
         $payment->setAdditionalInformation($value['additionalData'] ?? null);
-        $quote->setPayment($payment);
-        $this->quoteRepository->save($quote);
-    }
-
-    /**
-     * @throws LocalizedException
-     * @throws NoSuchEntityException
-     */
-    public function setAdditionalData(string $key, string $value): void
-    {
-        $quote = $this->checkoutSession->getQuote();
-        $payment = $quote->getPayment();
-        $payment->setAdditionalInformation($key, $value);
         $quote->setPayment($payment);
         $this->quoteRepository->save($quote);
     }

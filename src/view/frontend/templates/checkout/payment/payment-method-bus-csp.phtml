@@ -1,0 +1,177 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    (function () {
+        if (!window.hipayTocWatcher) {
+            window.hipayTocWatcher = {
+                bound: false,
+                callbacksByKey: Object.create(null),
+
+                bind: function () {
+                    if (this.bound) return;
+                    this.bound = true;
+
+                    var self = this;
+                    var lastAgreementState = null;
+
+                    function notifyAll() {
+                        var map = self.callbacksByKey;
+                        for (var key in map) {
+                            if (!Object.prototype.hasOwnProperty.call(map, key)) continue;
+                            try { map[key](); } catch (error) {}
+                        }
+                    }
+
+                    function snapshotAgreements() {
+                        var inputs = document.querySelectorAll("input[id^='agreement_']");
+                        var state = [];
+                        for (var i = 0; i < inputs.length; i++) {
+                            state.push(inputs[i].checked ? 1 : 0);
+                        }
+                        return state.join(",");
+                    }
+
+                    document.addEventListener("change", function (event) {
+                        var target = event && event.target ? event.target : null;
+                        if (!target || !target.matches || !target.matches("input[id^='agreement_']")) return;
+                        lastAgreementState = snapshotAgreements();
+                        notifyAll();
+                    });
+
+                    document.addEventListener("livewire:update", function () {
+                        var current = snapshotAgreements();
+                        if (current === "" || current === lastAgreementState) return;
+                        lastAgreementState = current;
+                        notifyAll();
+                    });
+                },
+
+                subscribe: function (key, callback) {
+                    this.bind();
+                    this.callbacksByKey[String(key)] = callback;
+                },
+
+                unsubscribe: function (key) {
+                    key = String(key);
+                    if (this.callbacksByKey[key]) {
+                        delete this.callbacksByKey[key];
+                    }
+                }
+            };
+        }
+
+        if (window.hipayPaymentBus) return;
+
+        const state = { activeMethod: null };
+        const handlers = new Map();
+        const activatedOnce = new Set();
+
+        function callSafely(fn) {
+            try { fn && fn(); } catch (e) {}
+        }
+
+        // Infer the active method from Hyvä Checkout payment radios.
+        function readActiveMethodFromDom() {
+            const checked = document.querySelector('input[name="payment[method]"]:checked');
+            if (checked && checked.value) return checked.value;
+
+            const hidden = document.querySelector('input[name="payment[method]"][type="hidden"]');
+            if (hidden && hidden.value) return hidden.value;
+
+            return null;
+        }
+
+        // Switch active method and call registered activate/deactivate hooks.
+        function setActiveMethod(method, { source = "event" } = {}) {
+            if (!method) return;
+
+            const previous = state.activeMethod;
+            if (previous === method) return;
+
+            state.activeMethod = method;
+
+            if (previous) {
+                const prev = handlers.get(previous);
+                if (prev) callSafely(prev.onDeactivate);
+            }
+
+            const cur = handlers.get(method);
+            if (cur) {
+                callSafely(cur.onActivate);
+                activatedOnce.add(method);
+            }
+
+            window.dispatchEvent(new CustomEvent("hipay:payment-method-changed", {
+                detail: { method, source }
+            }));
+        }
+
+        // Register lifecycle callbacks for one payment method code.
+        function register(method, { onActivate, onDeactivate } = {}) {
+            if (!method) return;
+
+            handlers.set(method, {
+                onActivate: onActivate || null,
+                onDeactivate: onDeactivate || null
+            });
+        }
+
+        // Ensure the requested method is active and initialized exactly once.
+        function ensureActive(method) {
+            if (!method) return false;
+
+            if (!state.activeMethod) {
+                const domMethod = readActiveMethodFromDom();
+                if (domMethod) setActiveMethod(domMethod, { source: "dom" });
+            }
+
+            if (state.activeMethod !== method) return false;
+
+            if (!activatedOnce.has(method)) {
+                const cur = handlers.get(method);
+                if (cur) {
+                    callSafely(cur.onActivate);
+                    activatedOnce.add(method);
+                }
+            }
+
+            return true;
+        }
+
+        window.addEventListener("checkout:payment:method-activate", (event) => {
+            const method = event?.detail?.method;
+            setActiveMethod(method, { source: "event" });
+        });
+
+        window.addEventListener("DOMContentLoaded", () => {
+            const domMethod = readActiveMethodFromDom();
+            if (domMethod) setActiveMethod(domMethod, { source: "domcontentloaded" });
+        });
+
+        window.hipayPaymentBus = {
+            getActiveMethod: () => state.activeMethod,
+            register,
+            ensureActive
+        };
+    })();
+</script>
+<?php $hyvaCsp->registerInlineScript(); ?>

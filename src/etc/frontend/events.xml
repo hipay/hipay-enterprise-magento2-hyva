@@ -17,6 +17,7 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
     <event name="hyva_config_generate_before">
-        <observer name="hipay_fullservice_hyva_checkout" instance="HiPay\FullserviceHyvaCheckout\Observer\RegisterModuleForHyvaConfig"/>
+        <observer name="hipay_fullservice_hyva_checkout"
+                  instance="HiPay\FullserviceHyvaCheckout\Observer\RegisterModuleForHyvaConfig"/>
     </event>
 </config>

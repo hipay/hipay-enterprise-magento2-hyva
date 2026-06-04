@@ -23,35 +23,14 @@ use Magento\Framework\Escaper;
 /** @var Card $_card */
 /** @var Escaper $escaper */
 ?>
-
 <?php if ($block->getCards() && count($block->getCards())): ?>
-    <script>
-        function deleteCardComponent() {
-            return {
-                deleteUrlPrefix: "<?= $escaper->escapeUrl($block->getDeleteCardLink()); ?>id/",
-                selectedCardId: null,
-                modal: null,
-
-                openModal(cardId) {
-                    this.selectedCardId = cardId;
-                    this.modal = document.getElementById('delete-confirmation-modal');
-                    if (this.modal) {
-                        this.modal.showModal();
-                    }
-                },
-
-                confirmDelete() {
-                    if (this.selectedCardId) {
-                        window.location.href = this.deleteUrlPrefix + this.selectedCardId;
-                    }
-                }
-            };
-        }
-    </script>
-
-    <div class="table-wrapper cards" x-data="deleteCardComponent()">
+    <div
+        class="table-wrapper cards"
+        x-data="deleteCardComponent"
+        data-delete-url-prefix="<?= $escaper->escapeHtmlAttr($block->getDeleteCardLink()); ?>id/"
+    >
         <table class="data table table-cards w-full" id="my-cards-table">
-            <caption class="table-caption"><?php $escaper->escapeHtml(__('Credit cards')); ?></caption>
+            <caption class="table-caption"><?= $escaper->escapeHtml(__('Credit cards')); ?></caption>
             <thead>
             <tr>
                 <th scope="col" class="col item text-left"><?= $escaper->escapeHtml(__('Card name')); ?></th>
@@ -63,13 +42,22 @@ use Magento\Framework\Escaper;
             <tbody>
             <?php foreach ($block->getCards() as $_card): ?>
                 <tr>
-                    <td data-th="<?= $escaper->escapeHtml(__('Card name')) ?>" class="col item"><?= $escaper->escapeHtml($_card->getName()) ?></td>
-                    <td data-th="<?= $escaper->escapeHtml(__('Exp. Date')) ?>" class="col item"><?= $escaper->escapeHtml($_card->getCcExpMonth()) . "/" . $escaper->escapeHtml($_card->getCcExpYear())  ?></td>
-                    <td data-th="<?= $escaper->escapeHtml(__('Card Number')) ?>" class="col item"><?= $escaper->escapeHtml($_card->getCcNumberEnc()) ?></td>
+                    <td data-th="<?= $escaper->escapeHtml(__('Card name')) ?>" class="col item">
+                        <?= $escaper->escapeHtml($_card->getName()) ?>
+                    </td>
+                    <td data-th="<?= $escaper->escapeHtml(__('Exp. Date')) ?>" class="col item">
+                        <?= $escaper->escapeHtml($_card->getCcExpMonth()) ?>
+                        /
+                        <?= $escaper->escapeHtml($_card->getCcExpYear()) ?>
+                    </td>
+                    <td data-th="<?= $escaper->escapeHtml(__('Card Number')) ?>" class="col item">
+                        <?= $escaper->escapeHtml($_card->getCcNumberEnc()) ?>
+                    </td>
                     <td data-th="<?= $escaper->escapeHtml(__('Actions')) ?>" class="col actions">
                         <button
+                            type="button"
                             class="btn btn-danger ml-auto"
-                            @click="openModal(<?= $_card->getId();?>)"
+                            @click="openModal(<?= (int) $_card->getId(); ?>)"
                         >
                             <?= $escaper->escapeHtml(__('Delete')); ?>
                         </button>
@@ -78,7 +66,8 @@ use Magento\Framework\Escaper;
             <?php endforeach; ?>
             </tbody>
         </table>
-        <dialog id="delete-confirmation-modal" class="modal p-4 rounded" x-ref="modal">
+
+        <dialog id="delete-confirmation-modal" class="modal p-4 rounded">
             <div class="modal-box">
                 <h3 class="font-bold text-lg"><?= $escaper->escapeHtml(__('Confirmation Required')); ?></h3>
                 <p class="py-4">
@@ -86,15 +75,16 @@ use Magento\Framework\Escaper;
                 </p>
                 <div class="modal-action flex flex-row">
                     <form method="dialog">
-                        <button class="btn"><?= $escaper->escapeHtml(__('Cancel')); ?></button>
+                        <button class="btn" type="submit"><?= $escaper->escapeHtml(__('Cancel')); ?></button>
                     </form>
-                    <button class="btn btn-error ml-2" @click="confirmDelete()">
+                    <button class="btn btn-error ml-2" type="button" @click="confirmDelete()">
                         <?= $escaper->escapeHtml(__('Delete')); ?>
                     </button>
                 </div>
             </div>
         </dialog>
     </div>
+
     <?php if ($block->getToolbarHtml()): ?>
         <div class="toolbar products-cards-toolbar bottom">
             <?= $block->getToolbarHtml() ?>
@@ -102,11 +92,10 @@ use Magento\Framework\Escaper;
     <?php endif; ?>
 <?php else: ?>
     <div class="message info empty">
-        <span>
-            <?= $escaper->escapeHtml(__('You have recorded no cards.')); ?>
-        </span>
+        <span><?= $escaper->escapeHtml(__('You have recorded no cards.')); ?></span>
     </div>
 <?php endif; ?>
+
 <div class="actions-toolbar">
     <div class="secondary">
         <a class="action back" href="<?= $escaper->escapeUrl($block->getBackUrl()); ?>">
@@ -114,4 +103,3 @@ use Magento\Framework\Escaper;
         </a>
     </div>
 </div>
-

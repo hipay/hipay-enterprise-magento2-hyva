@@ -1,0 +1,843 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    function hipayCheckoutPaypalApi() {
+        var root = this.$el;
+
+        var wireId = root.dataset.wireId || "";
+        var methodCode = root.dataset.method || "";
+        var isPaypalV2 = root.dataset.isPaypalV2 === "1";
+        var tocEnabled = root.dataset.tocEnabled === "1";
+
+        var hiPayGeneralConfig = {};
+        var hiPayPayPalConfig = {};
+        try { hiPayGeneralConfig = JSON.parse(root.dataset.config || "{}"); } catch (e) {}
+        try { hiPayPayPalConfig = JSON.parse(root.dataset.paypalConfig || "{}"); } catch (e) {}
+
+        var apiEnv = root.dataset.apiEnv || "";
+        var apiUsernameTokenJs = root.dataset.apiUsernameTokenJs || "";
+        var apiPasswordTokenJs = root.dataset.apiPasswordTokenJs || "";
+
+        var quoteAmount = parseFloat(root.dataset.amount || "0");
+        var quoteCurrency = root.dataset.currency || "EUR";
+
+        var initialized = false;
+        var hostedFields = null;
+        var paypalConfig = null;
+        var initRetryTimer = null;
+        var lastShippingValidationJson = null;
+        var hyvaRegistered = false;
+        var formSyncListener = null;
+
+        function getRootEl() {
+            if (root && root.isConnected) {
+                return root;
+            }
+
+            var selector = "[x-data='hipayCheckoutPaypalApi'][data-wire-id='"
+                + wireId
+                + "'][data-method='"
+                + methodCode
+                + "']";
+            var candidate = document.querySelector(selector)
+                || document.querySelector("[data-wire-id='" + wireId + "'][data-method='" + methodCode + "']");
+
+            if (candidate) {
+                root = candidate;
+            }
+
+            return root;
+        }
+
+        function setPlaceOrderDisabled(disabled) {
+            var btn = document.querySelector(".btn-place-order");
+            if (!btn) return;
+
+            if (disabled) {
+                btn.setAttribute("disabled", "disabled");
+            } else {
+                btn.removeAttribute("disabled");
+            }
+        }
+
+        function clearInitRetry() {
+            if (initRetryTimer) {
+                clearTimeout(initRetryTimer);
+                initRetryTimer = null;
+            }
+        }
+
+        function scheduleInitRetry() {
+            clearInitRetry();
+
+            initRetryTimer = setTimeout(function () {
+                var activeMethod = window.hipayPaymentBus && window.hipayPaymentBus.getActiveMethod
+                    ? window.hipayPaymentBus.getActiveMethod()
+                    : null;
+
+                if (activeMethod !== methodCode) {
+                    return;
+                }
+
+                initPaypalIfAllowed();
+            }, 120);
+        }
+
+        function getPaypalContainer() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='paypal-field']")
+                || currentRoot.querySelector("#paypal-field");
+        }
+
+        function getWarningEl() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='paypal-agreements-warning']")
+                || currentRoot.querySelector("#paypal-toc-message");
+        }
+
+        /**
+         * Render lock kept on window so it survives Magewire re-renders.
+         */
+        window.hipayPaypalGuard = window.hipayPaypalGuard || {
+            initInProgress: false,
+            pendingReinit: false
+        };
+
+        function isInitInProgress() {
+            return window.hipayPaypalGuard.initInProgress === true;
+        }
+
+        function setInitInProgress(value) {
+            window.hipayPaypalGuard.initInProgress = !!value;
+        }
+
+        function isPendingReinit() {
+            return window.hipayPaypalGuard.pendingReinit === true;
+        }
+
+        function setPendingReinit(value) {
+            window.hipayPaypalGuard.pendingReinit = !!value;
+        }
+
+        function getInvalidAddressBox() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='paypal-invalid-address']")
+                || currentRoot.querySelector("#paypal-invalid-address");
+        }
+
+        function getInvalidAddressFieldsEl() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='paypal-invalid-address-fields']");
+        }
+
+        function showInvalidAddress(fields) {
+            if (tocEnabled && !readAllAgreementsChecked()) return;
+            if (window.hipayFormHelper && !window.hipayFormHelper.areAddressFieldsFilled()) return;
+
+            fields = Array.isArray(fields) ? fields : [];
+            var box = getInvalidAddressBox();
+            var el = getInvalidAddressFieldsEl();
+            var map = getI18nFieldsMap();
+            fields = fields.map(function (f) {
+                return map[f] || f;
+            });
+
+            if (el) el.textContent = fields.join(", ");
+            if (box) box.classList.remove("hidden");
+
+            var c = getPaypalContainer();
+            if (c) c.style.display = "none";
+
+            var tocWarning = getWarningEl();
+            if (tocWarning) {
+                tocWarning.classList.add("hidden");
+                tocWarning.style.display = "";
+            }
+
+            hideRequiredFieldsWarning();
+        }
+
+        function hideInvalidAddress() {
+            var box = getInvalidAddressBox();
+            if (box) box.classList.add("hidden");
+        }
+
+        function getI18nFieldsMap() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return {};
+
+            try {
+                return JSON.parse(currentRoot.dataset.i18nFields || "{}");
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function parseHipayCreateError(err) {
+            var msg = (err && err.message) ? err.message : String(err || "");
+            var fields = [];
+
+            if (msg.indexOf("customerShippingInformation") !== -1
+                || msg.indexOf("request.customerShippingInformation") !== -1
+            ) {
+                if (/customerShippingInformation\.?streetaddress/i.test(msg)) fields.push("address");
+                if (/customerShippingInformation\.?zipCode/i.test(msg)) fields.push("zipCode");
+                if (/customerShippingInformation\.?city/i.test(msg)) fields.push("city");
+                if (/customerShippingInformation\.?country/i.test(msg)) fields.push("country");
+            } else {
+                if (/streetaddress/i.test(msg)) fields.push("address");
+                if (/zipcode/i.test(msg)) fields.push("zipCode");
+                if (/\bcity\b/i.test(msg)) fields.push("city");
+                if (/\bcountry\b/i.test(msg)) fields.push("country");
+            }
+
+            return Array.from(new Set(fields));
+        }
+
+        function handlePaypalAddressCreateError(err) {
+            var fields = parseHipayCreateError(err);
+            if (!fields.length) fields = ["address"];
+            showInvalidAddress(fields);
+        }
+
+        (function installCreateInterceptor() {
+            if (window.__hipayCreateInterceptorInstalled) return;
+            window.__hipayCreateInterceptorInstalled = true;
+
+            window.addEventListener("unhandledrejection", function (event) {
+                var reason = event && event.reason;
+                var msg = String((reason && (reason.message || reason)) || "");
+                if (msg && msg.indexOf("HIPAY_CREATE_") !== -1) {
+                    event.preventDefault();
+                    handlePaypalAddressCreateError(reason);
+                }
+            });
+
+            window.addEventListener("error", function (event) {
+                var err = event && event.error;
+                var msg = err && err.message ? err.message : "";
+                if (msg && msg.indexOf("HIPAY_CREATE_") !== -1) {
+                    event.preventDefault();
+                    handlePaypalAddressCreateError(err);
+                }
+            });
+        })();
+
+        function isInvalidAddressVisible() {
+            var box = getInvalidAddressBox();
+            return !!(box && !box.classList.contains("hidden"));
+        }
+
+        function safeToFixed(value, decimals) {
+            var d = typeof decimals === "number" ? decimals : 2;
+            var factor = Math.pow(10, d);
+            var n = parseFloat(value);
+            var rounded = Math.round((n + Number.EPSILON) * factor) / factor;
+            return rounded.toFixed(d);
+        }
+
+        function convertToUpperCaseAfterUnderscore(str) {
+            return String(str || "").replace(/_(\w+)/, function (_, match) {
+                return "_" + String(match).toUpperCase();
+            });
+        }
+
+        function getAfterPlaceOrderUrl() {
+            try {
+                return hiPayGeneralConfig.payment.hiPayFullservice.afterPlaceOrderUrl[methodCode] || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function getLocale() {
+            var loc = "en_US";
+            try {
+                loc = hiPayGeneralConfig.payment.hiPayFullservice.locale[methodCode] || "en_US";
+            } catch (e) {}
+            return convertToUpperCaseAfterUnderscore(loc);
+        }
+
+        function buildPaypalConfig() {
+            var methodCfg = {};
+            try {
+                methodCfg = hiPayPayPalConfig.payment[methodCode] || {};
+            } catch (e) {}
+
+            return {
+                template: "auto",
+                selector: "paypal-field",
+                canPayLater: !!methodCfg.bnpl,
+                paypalButtonStyle: {
+                    shape: methodCfg.button_shape,
+                    height: parseInt(methodCfg.button_height || 40, 10),
+                    color: methodCfg.button_color,
+                    label: methodCfg.button_label
+                },
+                request: {
+                    amount: safeToFixed(quoteAmount, 2),
+                    currency: quoteCurrency,
+                    locale: getLocale()
+                }
+            };
+        }
+
+        function isActuallyRendered() {
+            var c = getPaypalContainer();
+            if (!c) return false;
+            if (!c.isConnected) return false;
+
+            return !!c.querySelector("iframe, button");
+        }
+
+        function syncAmountFromDataset() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return;
+
+            quoteAmount = parseFloat(currentRoot.dataset.amount || "0");
+            quoteCurrency = currentRoot.dataset.currency || "EUR";
+
+            if (paypalConfig && paypalConfig.request) {
+                paypalConfig.request.amount = safeToFixed(quoteAmount, 2);
+                paypalConfig.request.currency = quoteCurrency;
+            }
+        }
+
+        /**
+         * Watch quote amount/currency changes on the dataset and update the config.
+         */
+        function startAmountObserver() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return;
+
+            if (currentRoot.__hipayAmountObserver) {
+                try { currentRoot.__hipayAmountObserver.disconnect(); } catch (e) {}
+                currentRoot.__hipayAmountObserver = null;
+            }
+
+            var lastAmount = currentRoot.dataset.amount;
+            var lastCurrency = currentRoot.dataset.currency;
+
+            currentRoot.__hipayAmountObserver = new MutationObserver(function () {
+                var liveRoot = getRootEl();
+                if (!liveRoot) return;
+
+                var newAmount = liveRoot.dataset.amount;
+                var newCurrency = liveRoot.dataset.currency;
+
+                if (newAmount === lastAmount && newCurrency === lastCurrency) return;
+
+                lastAmount = newAmount;
+                lastCurrency = newCurrency;
+
+                syncAmountFromDataset();
+            });
+
+            currentRoot.__hipayAmountObserver.observe(currentRoot, {
+                attributes: true,
+                attributeFilter: ["data-amount", "data-currency"]
+            });
+        }
+
+        function startShippingValidationObserver() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return;
+
+            if (currentRoot.__hipayShippingObserver) {
+                try { currentRoot.__hipayShippingObserver.disconnect(); } catch (e) {}
+                currentRoot.__hipayShippingObserver = null;
+            }
+
+            lastShippingValidationJson = currentRoot.dataset.hipayShippingValidation || "null";
+
+            currentRoot.__hipayShippingObserver = new MutationObserver(function () {
+                var liveRoot = getRootEl();
+                if (!liveRoot) return;
+
+                var newValidationJson = liveRoot.dataset.hipayShippingValidation || "null";
+                if (newValidationJson === lastShippingValidationJson) return;
+
+                lastShippingValidationJson = newValidationJson;
+
+                requestReinit();
+            });
+
+            currentRoot.__hipayShippingObserver.observe(currentRoot, {
+                attributes: true,
+                attributeFilter: ["data-hipay-shipping-validation"]
+            });
+        }
+
+        function readAllAgreementsChecked() {
+            var inputs = document.querySelectorAll("input[id^='agreement_']");
+            if (!inputs || inputs.length === 0) return true;
+
+            for (var i = 0; i < inputs.length; i++) {
+                if (!inputs[i].checked) return false;
+            }
+            return true;
+        }
+
+        function applyTocUiStateAndMaybeReset() {
+            var paypalContainer = getPaypalContainer();
+            var warning = getWarningEl();
+            if (!paypalContainer) return;
+
+            if (!tocEnabled) {
+                paypalContainer.style.display = "block";
+                if (warning) {
+                    warning.classList.add("hidden");
+                    warning.style.display = "";
+                }
+                return;
+            }
+
+            var allChecked = readAllAgreementsChecked();
+
+            if (allChecked) {
+                paypalContainer.style.display = "block";
+                if (warning) {
+                    warning.classList.add("hidden");
+                    warning.style.display = "";
+                }
+            } else {
+                paypalContainer.style.display = "none";
+
+                if (warning) warning.style.display = "block";
+            }
+        }
+
+        function getRequiredFieldsWarningEl() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='paypal-required-fields-warning']")
+                || currentRoot.querySelector("#paypal-required-fields-message");
+        }
+
+        function showRequiredFieldsWarning() {
+            var warning = getRequiredFieldsWarningEl();
+            if (!warning) return;
+            warning.classList.remove("hidden");
+            warning.style.display = "block";
+        }
+
+        function hideRequiredFieldsWarning() {
+            var warning = getRequiredFieldsWarningEl();
+            if (!warning) return;
+            warning.classList.add("hidden");
+            warning.style.display = "";
+        }
+
+        function showTocWarning() {
+            var warning = getWarningEl();
+            if (!warning) return;
+            warning.classList.remove("hidden");
+            warning.style.display = "block";
+        }
+
+        function hideTocWarning() {
+            var warning = getWarningEl();
+            if (!warning) return;
+            warning.classList.add("hidden");
+            warning.style.display = "";
+        }
+
+        function syncFormState() {
+            if (!isPaypalV2) return;
+
+            var container = getPaypalContainer();
+
+            if (tocEnabled && !readAllAgreementsChecked()) {
+                if (container) container.style.display = "none";
+                hideRequiredFieldsWarning();
+                hideInvalidAddress();
+                showTocWarning();
+                return;
+            }
+
+            if (!window.hipayFormHelper || !window.hipayFormHelper.areAddressFieldsFilled()) {
+                if (container) container.style.display = "none";
+                hideTocWarning();
+                hideInvalidAddress();
+                showRequiredFieldsWarning();
+                return;
+            }
+
+            hideTocWarning();
+            hideRequiredFieldsWarning();
+
+            if (!initialized || !isActuallyRendered()) {
+                initPaypalIfAllowed();
+            } else if (!isInvalidAddressVisible()) {
+                if (container) container.style.display = "block";
+            }
+        }
+
+        /**
+         * Watch the form and re-sync the widget on changes.
+         */
+        function startFormSync() {
+            if (window.__hipayPaypalFormSync) {
+                window.hipayFormHelper.stopFormSync(window.__hipayPaypalFormSync);
+            }
+            formSyncListener = window.hipayFormHelper.startFormSync(syncFormState);
+            window.__hipayPaypalFormSync = formSyncListener;
+        }
+
+        function stopFormSync() {
+            window.hipayFormHelper.stopFormSync(formSyncListener);
+            if (window.__hipayPaypalFormSync === formSyncListener) {
+                window.__hipayPaypalFormSync = null;
+            }
+            formSyncListener = null;
+        }
+
+        function initHipaySdk(paypalConfig) {
+            var locale = (paypalConfig && paypalConfig.request && paypalConfig.request.locale)
+                ? paypalConfig.request.locale
+                : "en_US";
+            var lang = (locale && locale.length > 2) ? locale.substr(0, 2) : "en";
+
+            window.hipaySdk = new HiPay({
+                username: apiUsernameTokenJs,
+                password: apiPasswordTokenJs,
+                environment: apiEnv,
+                lang: lang,
+                cspNonce: getRootEl().dataset.cspNonce || ""
+            });
+        }
+
+        /**
+         * Create the HiPay PayPal widget, unless one is already rendered.
+         */
+        function initHostedFields(paypalConfig) {
+            var container = getPaypalContainer();
+            if (container && container.childElementCount > 0) {
+                return Promise.resolve(hostedFields);
+            }
+
+            var created;
+
+            try {
+                created = window.hipaySdk.create("paypal", paypalConfig);
+            } catch (e) {
+                handlePaypalAddressCreateError(e);
+                return Promise.reject(e);
+            }
+
+            return Promise.resolve(created)
+                .then(function (instance) {
+                    hostedFields = instance;
+
+                    hostedFields.on("paymentAuthorized", function (token) {
+                        paymentAuthorized(token);
+                    });
+
+                    hostedFields.on("ready", function () {
+                        var placeOrder = document.querySelector(".btn-place-order");
+                        if (placeOrder) placeOrder.setAttribute("disabled", "disabled");
+                    });
+
+                    return hostedFields;
+                })
+                .catch(function (e) {
+                    handlePaypalAddressCreateError(e);
+                    throw e;
+                });
+        }
+
+        async function paymentAuthorized(tokenHipay) {
+            var isValid = await hyvaCheckout.validation.validate();
+            if (!isValid) return;
+
+            return Magewire.find(wireId)
+                .call("setPaymentData", {
+                    additionalData: {
+                        paypal_order_id: tokenHipay.orderID,
+                        browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo()),
+                        redirectUrl: getAfterPlaceOrderUrl()
+                    }
+                })
+                .then(function () {
+                    var currentRoot = getRootEl();
+                    var iframe =
+                        (currentRoot && currentRoot.querySelector("[data-role='paypal-field'] iframe")) ||
+                        (currentRoot && currentRoot.querySelector("#paypal-field iframe"));
+
+                    if (iframe) iframe.style.display = "none";
+
+                    return hyvaCheckout.main.getWireComponent()
+                        .placeOrder()
+                        .catch(function () {
+                            if (iframe) iframe.style.display = "block";
+                        });
+                });
+        }
+
+        function readShippingValidationFromDataset() {
+            var currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            try {
+                return JSON.parse(currentRoot.dataset.hipayShippingValidation || "null");
+            } catch (e) {
+                return null;
+            }
+        }
+
+
+        function initPaypalIfAllowed() {
+            if (!isPaypalV2) return;
+            if (isInitInProgress()) return;
+
+            if (hostedFields && isActuallyRendered()) {
+                applyTocUiStateAndMaybeReset();
+                var c = getPaypalContainer();
+                if (c) c.style.display = "block";
+                setPlaceOrderDisabled(true);
+                initialized = true;
+                return;
+            }
+
+            if (hostedFields && !isActuallyRendered()) {
+                try { if (hostedFields.destroy) hostedFields.destroy(); } catch (e) {}
+                hostedFields = null;
+            }
+
+            initialized = true;
+
+            paypalConfig = buildPaypalConfig();
+            initHipaySdk(paypalConfig);
+
+            var res = readShippingValidationFromDataset();
+
+            if (res && res.valid === false) {
+                showInvalidAddress(
+                    (res.fields && res.fields.length)
+                        ? res.fields
+                        : ["address", "zipCode", "city", "country"]
+                );
+                setPlaceOrderDisabled(true);
+                return;
+            }
+
+            hideInvalidAddress();
+
+            if (res && res.shipping) {
+                paypalConfig.request.customerShippingInformation = res.shipping;
+            }
+
+            applyTocUiStateAndMaybeReset();
+            if (tocEnabled && !readAllAgreementsChecked()) return;
+
+            if (!isContainerUsable()) {
+                initialized = false;
+                scheduleInitRetry();
+                return;
+            }
+
+            setInitInProgress(true);
+            initHostedFields(paypalConfig)
+                .then(function () {
+                    setInitInProgress(false);
+                    if (isPendingReinit()) {
+                        setPendingReinit(false);
+                        teardownPaypalWidget();
+                        syncFormState();
+                    }
+                })
+                .catch(function () {
+                    setInitInProgress(false);
+                    setPendingReinit(false);
+                });
+        }
+
+        function isContainerUsable() {
+            var c = getPaypalContainer();
+            if (!c || !c.isConnected) return false;
+
+            if (c.offsetParent === null) return false;
+
+            return true;
+        }
+
+        function onMethodActivate() {
+            if (!isPaypalV2) return;
+            setPlaceOrderDisabled(true);
+            if (!window.hipaySdk) {
+                initHipaySdk(buildPaypalConfig());
+            }
+            startFormSync();
+            syncFormState();
+        }
+
+        /**
+         * Clean up when the PayPal method is deselected.
+         */
+        function onMethodDeactivate() {
+            clearInitRetry();
+            stopFormSync();
+
+            setPendingReinit(false);
+
+            var container = getPaypalContainer();
+            if (container) container.style.display = "none";
+
+            setPlaceOrderDisabled(false);
+        }
+
+        /**
+         * Destroy the current PayPal widget and empty its container.
+         */
+        function teardownPaypalWidget() {
+            clearInitRetry();
+            try { if (hostedFields && hostedFields.destroy) hostedFields.destroy(); } catch (e) {}
+            hostedFields = null;
+            initialized = false;
+            var c = getPaypalContainer();
+            if (c) c.innerHTML = "";
+        }
+
+        /**
+         * Rebuild the widget after a quote change, queuing it if an init is running.
+         */
+        function requestReinit() {
+            teardownPaypalWidget();
+
+            if (isInitInProgress()) {
+                setPendingReinit(true);
+            } else {
+                syncFormState();
+            }
+        }
+
+        /**
+         * Rebuild the widget when the checkout quote changes.
+         */
+        function resetOnCheckoutChange() {
+            if (!isContainerUsable()) {
+                hostedFields = null;
+                initialized = false;
+                return;
+            }
+
+            hideInvalidAddress();
+            requestReinit();
+        }
+
+        function registerWithHyvaOnce() {
+            if (hyvaRegistered) return;
+            if (typeof hyvaCheckout === "undefined" || !hyvaCheckout.payment) return;
+
+            hyvaRegistered = true;
+
+            var existingMethod = hyvaCheckout.payment.getByCode(methodCode);
+            if (existingMethod) {
+                existingMethod.initialize = async function () {
+                    onMethodActivate();
+                };
+                existingMethod.uninitialize = async function () {
+                    onMethodDeactivate();
+                };
+                existingMethod.placeOrderViaJs = function () {
+                    return isPaypalV2;
+                };
+                return;
+            }
+
+            hyvaCheckout.payment.registerMethod({
+                code: methodCode,
+                method: {
+                    initialize: async function () {
+                        onMethodActivate();
+                    },
+                    uninitialize: async function () {
+                        onMethodDeactivate();
+                    },
+                    placeOrderViaJs: function () {
+                        return isPaypalV2;
+                    }
+                }
+            });
+        }
+
+        return {
+            init: function () {
+                if (!window.hipayPaymentBus) return;
+
+                registerWithHyvaOnce();
+
+                var currentRoot = getRootEl();
+
+                if (tocEnabled && window.hipayTocWatcher && currentRoot && !currentRoot.__hipayTocSubscribed) {
+                    currentRoot.__hipayTocSubscribed = true;
+
+                    var tocKey = wireId || methodCode;
+                    currentRoot.__hipayTocKey = tocKey;
+
+                    window.hipayTocWatcher.subscribe(tocKey, function () {
+                        syncFormState();
+                    });
+                }
+
+                window.hipayPaymentBus.register(methodCode, {
+                    onActivate: onMethodActivate,
+                    onDeactivate: onMethodDeactivate
+                });
+                startAmountObserver();
+                startShippingValidationObserver();
+
+                window.hipayPaymentBus.ensureActive(methodCode);
+
+                var persistent = getPaypalContainer();
+                if (persistent) {
+                    if (persistent.__hipayStorageChangeHandler) {
+                        window.removeEventListener(
+                            "checkout:storage:changed",
+                            persistent.__hipayStorageChangeHandler
+                        );
+                    }
+                    persistent.__hipayStorageChangeHandler = resetOnCheckoutChange;
+                    window.addEventListener("checkout:storage:changed", resetOnCheckoutChange);
+                }
+            }
+        };
+    }
+
+    window.addEventListener(
+        "alpine:init",
+        function () {
+            Alpine.data("hipayCheckoutPaypalApi", hipayCheckoutPaypalApi);
+        },
+        { once: true }
+    );
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

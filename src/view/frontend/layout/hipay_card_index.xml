@@ -14,9 +14,16 @@
  * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
  */
 -->
-<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="customer_account"/>
+
+    <head>
+        <script src="HiPay_FullserviceHyvaCheckout::js/card-delete.js"/>
+    </head>
+
     <body>
-        <referenceBlock name="hipay_card_list" template="HiPay_FullserviceHyvaCheckout::card/customer/list.phtml"/>
+        <referenceBlock name="hipay_card_list"
+                        template="HiPay_FullserviceHyvaCheckout::card/customer/list.phtml"/>
     </body>
 </page>

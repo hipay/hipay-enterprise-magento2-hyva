@@ -27,6 +27,12 @@ use Magento\Sales\Api\OrderRepositoryInterface;
  */
 class PlaceOrderService extends AbstractPlaceOrderService
 {
+    /**
+     * Initialize the default place-order service.
+     *
+     * @param CartManagementInterface $cartManagement
+     * @param OrderRepositoryInterface $orderRepository
+     */
     public function __construct(
         CartManagementInterface $cartManagement,
         private OrderRepositoryInterface $orderRepository
@@ -35,8 +41,11 @@ class PlaceOrderService extends AbstractPlaceOrderService
     }
 
     /**
-     * @throws InputException
-     * @throws NoSuchEntityException
+     * Return the frontend redirect URL resolved from the placed order payment.
+     *
+     * @param Quote $quote
+     * @param int|null $orderId
+     * @return string
      */
     public function getRedirectUrl(Quote $quote, ?int $orderId = null): string
     {
@@ -48,10 +57,13 @@ class PlaceOrderService extends AbstractPlaceOrderService
     }
 
     /**
+     * Place the current quote order using the active payment instance.
+     *
+     * @param Quote $quote
      * @throws CouldNotSaveException
      */
     public function placeOrder(Quote $quote): int
     {
-        return (int)$this->cartManagement->placeOrder($quote->getId(), $quote->getPayment());
+        return (int) $this->cartManagement->placeOrder($quote->getId(), $quote->getPayment());
     }
 }
