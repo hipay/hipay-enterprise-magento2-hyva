@@ -24,16 +24,19 @@ use Magento\Framework\Event\ObserverInterface;
 class RegisterModuleForHyvaConfig implements ObserverInterface
 {
     /**
-     * @var ComponentRegistrar
+     * @param ComponentRegistrar $componentRegistrar
      */
-    private $componentRegistrar;
-
-    public function __construct(ComponentRegistrar $componentRegistrar)
+    public function __construct(private ComponentRegistrar $componentRegistrar)
     {
-        $this->componentRegistrar = $componentRegistrar;
     }
 
-    public function execute(Observer $event)
+    /**
+     * Register this module path so Hyva can include its compatibility assets.
+     *
+     * @param Observer $event
+     * @return void
+     */
+    public function execute(Observer $event): void
     {
         $config = $event->getData('config');
         $extensions = $config->hasData('extensions') ? $config->getData('extensions') : [];

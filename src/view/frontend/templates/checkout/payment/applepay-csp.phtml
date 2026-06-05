@@ -1,0 +1,761 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    function hipayCheckoutApplePay() {
+        const root = this.$el;
+
+        const methodCode = root.dataset.method;
+        const wireId = root.dataset.wireId;
+        const selectorId = root.dataset.selectorId;
+        const tocEnabled = root.dataset.tocEnabled === "1";
+
+        let hiPayApplePayConfig = {};
+        let hiPayGeneralConfig = {};
+        try { hiPayApplePayConfig = JSON.parse(root.dataset.applepayConfig || "{}"); } catch (e) {}
+        try { hiPayGeneralConfig = JSON.parse(root.dataset.generalConfig || "{}"); } catch (e) {}
+
+        let initialized = false;
+        let eligibilityChecked = false;
+        let applePayAllowed = null;
+        let eligibilityRetryTimer = null;
+        let eligibilityRetryCount = 0;
+        let quoteObserver = null;
+        let grandTotalObserver = null;
+        let applePayConfig = null;
+        let hyvaRegistered = false;
+        let formSyncListener = null;
+
+        const component = {
+            creditCardToken: null,
+            creditCardType: "cb",
+            instanceApplePay: null,
+            eci: "",
+            placeOrderStatusUrl: "",
+            afterPlaceOrderUrl: "",
+            env: "stage",
+            apiUsernameTokenJs: "",
+            apiPasswordTokenJs: "",
+            merchantId: "",
+            displayName: "",
+            buttonType: "plain",
+            buttonColor: "black",
+            locale: "en_us"
+        };
+
+        function initializeComponent() {
+            const hipayApplepay = hiPayApplePayConfig?.payment?.hipay_applepay;
+            const hiPayFullservice = hiPayGeneralConfig?.payment?.hiPayFullservice;
+
+            if (hipayApplepay) {
+                component.env = hipayApplepay.env || component.env;
+                component.apiUsernameTokenJs = hipayApplepay.apiUsernameTokenJs || component.apiUsernameTokenJs;
+                component.apiPasswordTokenJs = hipayApplepay.apiPasswordTokenJs || component.apiPasswordTokenJs;
+                component.merchantId = hipayApplepay.merchant_id || component.merchantId;
+                component.displayName = hipayApplepay.display_name || component.displayName;
+                component.buttonType = hipayApplepay.button_type || component.buttonType;
+                component.buttonColor = hipayApplepay.button_color || component.buttonColor;
+            }
+
+            if (hiPayFullservice) {
+                component.eci = hiPayFullservice.defaultEci || component.eci;
+                component.placeOrderStatusUrl = hiPayFullservice.placeOrderStatusUrl?.hipay_applepay
+                    || component.placeOrderStatusUrl;
+                component.afterPlaceOrderUrl = hiPayFullservice.afterPlaceOrderUrl?.hipay_applepay
+                    || component.afterPlaceOrderUrl;
+                component.locale = hiPayFullservice.locale?.hipay_applepay || component.locale;
+            }
+        }
+
+        function initHipaySdk() {
+            let lang = "en";
+            if (component.locale && component.locale.length > 2) {
+                lang = component.locale.substr(0, 2);
+            }
+
+            window.hipaySdk = new HiPay({
+                username: component.apiUsernameTokenJs,
+                password: component.apiPasswordTokenJs,
+                environment: component.env,
+                lang: lang
+            });
+        }
+
+        function isHipaySdkReady() {
+            return typeof window.HiPay === "function" || typeof HiPay === "function";
+        }
+
+        function isApplePayApiReady() {
+            return !!(window.ApplePaySession && typeof window.ApplePaySession.canMakePayments === "function");
+        }
+
+        function clearEligibilityRetry() {
+            if (!eligibilityRetryTimer) return;
+
+            window.clearTimeout(eligibilityRetryTimer);
+            eligibilityRetryTimer = null;
+        }
+
+        function clearQuoteObserver() {
+            if (!quoteObserver) return;
+
+            try { quoteObserver.disconnect(); } catch (error) {}
+            quoteObserver = null;
+        }
+
+        function clearGrandTotalObserver() {
+            if (!grandTotalObserver) return;
+
+            try { grandTotalObserver.disconnect(); } catch (error) {}
+            grandTotalObserver = null;
+        }
+
+        function scheduleEligibilityRetry() {
+            if (eligibilityRetryTimer || eligibilityRetryCount >= 8) return;
+
+            eligibilityRetryCount += 1;
+            eligibilityRetryTimer = window.setTimeout(function () {
+                eligibilityRetryTimer = null;
+                initOnActivate();
+            }, 350);
+        }
+
+        function getRootEl() {
+            if (root && root.isConnected) {
+                return root;
+            }
+
+            if (!wireId) {
+                return null;
+            }
+
+            return document.querySelector("[data-wire-id='" + wireId + "'][data-method='" + methodCode + "']");
+        }
+
+        function canMakePaymentsFallback() {
+            if (!window.ApplePaySession || !window.ApplePaySession.canMakePayments) {
+                return false;
+            }
+
+            try {
+                return !!window.ApplePaySession.canMakePayments();
+            } catch (error) {
+                return false;
+            }
+        }
+
+        async function resolveApplePayEligibility() {
+            if (eligibilityChecked) {
+                return !!applePayAllowed;
+            }
+
+            if (!component.displayName) {
+                eligibilityChecked = true;
+                applePayAllowed = false;
+                return applePayAllowed;
+            }
+
+            if (!isHipaySdkReady() && !isApplePayApiReady()) {
+                return null;
+            }
+
+            if (component.merchantId) {
+                try {
+                    if (!window.hipaySdk) initHipaySdk();
+                    const result = await window.hipaySdk.canMakePaymentsWithActiveCard(component.merchantId);
+                    applePayAllowed = result ? true : canMakePaymentsFallback();
+                } catch (error) {
+                    applePayAllowed = canMakePaymentsFallback();
+                }
+            } else {
+                applePayAllowed = canMakePaymentsFallback();
+            }
+
+            eligibilityChecked = true;
+            return !!applePayAllowed;
+        }
+
+        function getRequiredFieldsWarningEl() {
+            const currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='applepay-required-fields-warning']")
+                || currentRoot.querySelector("[id='applepay-required-fields-message']");
+        }
+
+        function hideRequiredFieldsWarning() {
+            const warning = getRequiredFieldsWarningEl();
+            if (!warning) return;
+
+            warning.classList.add("hidden");
+            warning.style.display = "";
+        }
+
+        function showRequiredFieldsWarning() {
+            const warning = getRequiredFieldsWarningEl();
+            if (!warning) return;
+
+            warning.classList.remove("hidden");
+            warning.style.display = "block";
+        }
+
+        function syncFormState() {
+            if (!applePayAllowed) return;
+
+            const btn = getButtonContainer();
+
+            if (tocEnabled && !readAllAgreementsChecked()) {
+                if (btn) btn.style.display = "none";
+                hideRequiredFieldsWarning();
+                hideCompatibilityMessage();
+                showTermsWarning();
+                return;
+            }
+
+            if (!window.hipayFormHelper.areAddressFieldsFilled()) {
+                if (btn) btn.style.display = "none";
+                hideTermsWarning();
+                hideCompatibilityMessage();
+                showRequiredFieldsWarning();
+                return;
+            }
+
+            if (btn) btn.style.display = "";
+            hideTermsWarning();
+            hideRequiredFieldsWarning();
+            hideCompatibilityMessage();
+        }
+
+        /**
+         * Watch the form and re-sync the widget on changes.
+         */
+        function startFormSync() {
+            if (window.__hipayApplePayFormSync) {
+                window.hipayFormHelper.stopFormSync(window.__hipayApplePayFormSync);
+            }
+            formSyncListener = window.hipayFormHelper.startFormSync(syncFormState);
+            window.__hipayApplePayFormSync = formSyncListener;
+        }
+
+        function stopFormSync() {
+            window.hipayFormHelper.stopFormSync(formSyncListener);
+            if (window.__hipayApplePayFormSync === formSyncListener) {
+                window.__hipayApplePayFormSync = null;
+            }
+            formSyncListener = null;
+        }
+
+        function bindApplePayEvents() {
+            if (!component.instanceApplePay) return;
+
+            component.instanceApplePay.on("paymentAuthorized", async (response) => {
+                component.creditCardToken = response.token;
+                component.creditCardType =
+                    (response.brand || "")
+                        .toLowerCase()
+                        .replace(/ /g, "-") || component.creditCardType;
+
+                const paymentData = {
+                    ccType: component.creditCardType,
+                    additionalData: {
+                        card_token: component.creditCardToken,
+                        eci: component.eci,
+                        cc_type: component.creditCardType
+                    }
+                };
+
+                window.hipayFormHelper.cleanupStaleRequiredAttributes();
+
+                const isValid = await hyvaCheckout.validation.validate();
+                if (!isValid) {
+                    component.instanceApplePay.completePaymentWithFailure();
+                    return;
+                }
+
+                try {
+                    await Magewire.find(wireId).call("setPaymentData", paymentData);
+
+                    const result = await hyvaCheckout.order.place();
+
+                    if (result && result.result === true) {
+                        component.instanceApplePay.completePaymentWithSuccess();
+                        return;
+                    }
+
+                    component.instanceApplePay.completePaymentWithFailure();
+                } catch (error) {
+                    component.instanceApplePay.completePaymentWithFailure();
+                }
+            });
+        }
+
+        function getButtonContainer() {
+            const currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("#" + selectorId)
+                || currentRoot.querySelector("[id='" + selectorId + "']");
+        }
+
+        function getGrandTotalEl() {
+            return document.querySelector(".total-segments .item.grand_total .value");
+        }
+
+        function parseLocalizedAmount(value) {
+            if (!value) return null;
+
+            const normalized = String(value)
+                .replace(/ /g, " ")
+                .replace(/[^\d,.\- ]/g, "")
+                .trim();
+
+            if (!normalized) return null;
+
+            const lastComma = normalized.lastIndexOf(",");
+            const lastDot = normalized.lastIndexOf(".");
+
+            let decimalSeparator = null;
+            if (lastComma !== -1 && lastDot !== -1) {
+                decimalSeparator = lastComma > lastDot ? "," : ".";
+            } else if (lastComma !== -1) {
+                decimalSeparator = ",";
+            } else if (lastDot !== -1) {
+                decimalSeparator = ".";
+            }
+
+            let numeric = normalized.replace(/\s/g, "");
+            if (decimalSeparator === ",") {
+                numeric = numeric.replace(/\./g, "").replace(",", ".");
+            } else if (decimalSeparator === ".") {
+                numeric = numeric.replace(/,/g, "");
+            }
+
+            const parsed = parseFloat(numeric);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        function readDisplayedGrandTotal() {
+            const totalEl = getGrandTotalEl();
+            if (!totalEl) return null;
+
+            return parseLocalizedAmount(totalEl.textContent || "");
+        }
+
+        function readQuoteData() {
+            const currentRoot = getRootEl();
+            const displayedGrandTotal = readDisplayedGrandTotal();
+
+            return {
+                grandTotal: displayedGrandTotal !== null
+                    ? displayedGrandTotal
+                    : parseFloat((currentRoot && currentRoot.dataset.grandTotal) || "0"),
+                countryCode: (currentRoot && currentRoot.dataset.countryCode) || "",
+                currencyCode: (currentRoot && currentRoot.dataset.currencyCode) || ""
+            };
+        }
+
+        function isApplePayRendered() {
+            const btn = getButtonContainer();
+            return !!(btn && btn.isConnected && btn.childElementCount > 0);
+        }
+
+        function resetApplePayInstance() {
+            component.instanceApplePay = null;
+            initialized = false;
+            applePayConfig = null;
+
+            const btn = getButtonContainer();
+            if (btn) {
+                btn.innerHTML = "";
+            }
+        }
+
+        function syncApplePayAmount() {
+            if (!component.instanceApplePay || !applePayConfig) return;
+
+            const quoteData = readQuoteData();
+            applePayConfig.request.countryCode = quoteData.countryCode;
+            applePayConfig.request.currencyCode = quoteData.currencyCode;
+            applePayConfig.request.total.amount = Number(quoteData.grandTotal).toFixed(2);
+
+            try {
+                component.instanceApplePay.update(applePayConfig);
+            } catch (error) {
+                resetApplePayInstance();
+                initOnActivate();
+            }
+        }
+
+        function startQuoteObserver() {
+            const currentRoot = getRootEl();
+            if (!currentRoot) return;
+
+            clearQuoteObserver();
+
+            let lastGrandTotal = currentRoot.dataset.grandTotal || "";
+            let lastCountryCode = currentRoot.dataset.countryCode || "";
+            let lastCurrencyCode = currentRoot.dataset.currencyCode || "";
+
+            quoteObserver = new MutationObserver(function () {
+                const liveRoot = getRootEl();
+                if (!liveRoot) return;
+
+                const newGrandTotal = liveRoot.dataset.grandTotal || "";
+                const newCountryCode = liveRoot.dataset.countryCode || "";
+                const newCurrencyCode = liveRoot.dataset.currencyCode || "";
+
+                if (
+                    newGrandTotal === lastGrandTotal
+                    && newCountryCode === lastCountryCode
+                    && newCurrencyCode === lastCurrencyCode
+                ) {
+                    return;
+                }
+
+                lastGrandTotal = newGrandTotal;
+                lastCountryCode = newCountryCode;
+                lastCurrencyCode = newCurrencyCode;
+
+                if (!component.instanceApplePay || !applePayConfig) {
+                    initOnActivate();
+                    return;
+                }
+
+                syncApplePayAmount();
+            });
+
+            quoteObserver.observe(currentRoot, {
+                attributes: true,
+                attributeFilter: ["data-grand-total", "data-country-code", "data-currency-code"]
+            });
+        }
+
+        function startGrandTotalObserver() {
+            const totalEl = getGrandTotalEl();
+            if (!totalEl) return;
+
+            clearGrandTotalObserver();
+
+            let lastText = totalEl.textContent || "";
+            grandTotalObserver = new MutationObserver(function () {
+                const liveTotalEl = getGrandTotalEl();
+                if (!liveTotalEl) return;
+
+                const nextText = liveTotalEl.textContent || "";
+                if (nextText === lastText) return;
+
+                lastText = nextText;
+                syncApplePayAmount();
+            });
+
+            grandTotalObserver.observe(totalEl, {
+                childList: true,
+                characterData: true,
+                subtree: true
+            });
+        }
+
+        function getMessageEl() {
+            const currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[id='applepay-message']");
+        }
+
+        function getTermsWarningEl() {
+            const currentRoot = getRootEl();
+            if (!currentRoot) return null;
+
+            return currentRoot.querySelector("[data-role='applepay-agreements-warning']")
+                || currentRoot.querySelector("[id='applepay-toc-message']");
+        }
+
+        function hideCompatibilityMessage() {
+            const message = getMessageEl();
+            if (!message) return;
+
+            message.classList.add("hidden");
+            message.style.display = "";
+        }
+
+        function showCompatibilityMessage() {
+            const message = getMessageEl();
+            if (!message) return;
+
+            message.classList.remove("hidden");
+            message.style.display = "block";
+        }
+
+        function hideTermsWarning() {
+            const warning = getTermsWarningEl();
+            if (!warning) return;
+
+            warning.classList.add("hidden");
+            warning.style.display = "";
+        }
+
+        function showTermsWarning() {
+            const warning = getTermsWarningEl();
+            if (!warning) return;
+
+            warning.classList.remove("hidden");
+            warning.style.display = "block";
+        }
+
+        function readAllAgreementsChecked() {
+            const inputs = document.querySelectorAll("input[id^='agreement_']");
+            if (!inputs || inputs.length === 0) return true;
+
+            for (let i = 0; i < inputs.length; i++) {
+                if (!inputs[i].checked) return false;
+            }
+
+            return true;
+        }
+
+        function applyTocUiState() {
+            const btn = getButtonContainer();
+
+            if (!tocEnabled) {
+                hideTermsWarning();
+                return true;
+            }
+
+            const allChecked = readAllAgreementsChecked();
+
+            if (allChecked) {
+                hideTermsWarning();
+                return true;
+            }
+
+            if (btn) btn.style.display = "none";
+            hideCompatibilityMessage();
+            showTermsWarning();
+
+            return false;
+        }
+
+        function bindTocWatcher() {
+            if (!tocEnabled || !window.hipayTocWatcher) return;
+
+            const tocKey = wireId || methodCode;
+            window.hipayTocWatcher.subscribe(tocKey, function () {
+                const activeMethod = window.hipayPaymentBus && window.hipayPaymentBus.getActiveMethod
+                    ? window.hipayPaymentBus.getActiveMethod()
+                    : null;
+
+                if (activeMethod !== methodCode) return;
+
+                syncFormState();
+
+                if (readAllAgreementsChecked() && !initialized) {
+                    initOnActivate();
+                }
+            });
+        }
+
+        function showNotAllowedState() {
+            const btn = getButtonContainer();
+
+            if (btn) btn.style.display = "none";
+            hideTermsWarning();
+            hideRequiredFieldsWarning();
+            showCompatibilityMessage();
+        }
+
+        function showPendingEligibilityState() {
+            const btn = getButtonContainer();
+
+            if (btn) btn.style.display = "none";
+            hideTermsWarning();
+            hideCompatibilityMessage();
+        }
+
+        function createApplePay() {
+            if (component.instanceApplePay && isApplePayRendered()) return;
+
+            if (component.instanceApplePay && !isApplePayRendered()) {
+                resetApplePayInstance();
+            }
+
+            const quoteData = readQuoteData();
+
+            applePayConfig = {
+                displayName: component.displayName,
+                request: {
+                    countryCode: quoteData.countryCode,
+                    currencyCode: quoteData.currencyCode,
+                    total: {
+                        label: component.displayName,
+                        amount: Number(quoteData.grandTotal).toFixed(2)
+                    }
+                },
+                selector: selectorId,
+                applePayStyle: {
+                    type: component.buttonType,
+                    color: component.buttonColor
+                }
+            };
+
+            component.instanceApplePay = window.hipaySdk.create("paymentRequestButton", applePayConfig);
+
+            if (component.instanceApplePay) {
+                const placeOrderBtn = document.querySelector(".btn-place-order");
+                if (placeOrderBtn) placeOrderBtn.setAttribute("disabled", "disabled");
+                bindApplePayEvents();
+                startFormSync();
+                syncFormState();
+                startQuoteObserver();
+                startGrandTotalObserver();
+            }
+        }
+
+        async function initOnActivate() {
+            const btn = getButtonContainer();
+            if (!btn) initialized = false;
+
+            if (initialized && !isApplePayRendered()) {
+                resetApplePayInstance();
+            }
+
+            bindTocWatcher();
+            initializeComponent();
+
+            const canDisplay = applyTocUiState();
+            if (!canDisplay) {
+                clearEligibilityRetry();
+                const placeOrderBtn = document.querySelector(".btn-place-order");
+                if (placeOrderBtn) placeOrderBtn.setAttribute("disabled", "disabled");
+                return;
+            }
+
+            const allowed = await resolveApplePayEligibility();
+            if (allowed === null) {
+                initialized = false;
+                showPendingEligibilityState();
+                scheduleEligibilityRetry();
+                return;
+            }
+
+            clearEligibilityRetry();
+            if (!allowed) {
+                initialized = false;
+                showNotAllowedState();
+                return;
+            }
+
+            eligibilityRetryCount = 0;
+            hideCompatibilityMessage();
+
+            if (initialized) {
+                syncFormState();
+                return;
+            }
+            initialized = true;
+
+            if (!window.hipaySdk) initHipaySdk();
+            createApplePay();
+
+            const placeOrderBtn = document.querySelector(".btn-place-order");
+            if (placeOrderBtn) placeOrderBtn.setAttribute("disabled", "disabled");
+        }
+
+        function onDeactivate() {
+            stopFormSync();
+            resetApplePayInstance();
+            clearEligibilityRetry();
+            eligibilityRetryCount = 0;
+            clearQuoteObserver();
+            clearGrandTotalObserver();
+
+            const btn = getButtonContainer();
+            if (btn) btn.style.display = "";
+
+            hideTermsWarning();
+            hideRequiredFieldsWarning();
+            hideCompatibilityMessage();
+
+            const placeOrderBtn = document.querySelector(".btn-place-order");
+            if (placeOrderBtn) placeOrderBtn.removeAttribute("disabled");
+        }
+
+        function registerWithHyvaOnce() {
+            if (hyvaRegistered) return;
+            if (typeof hyvaCheckout === "undefined" || !hyvaCheckout.payment) return;
+
+            hyvaRegistered = true;
+
+            const existingMethod = hyvaCheckout.payment.getByCode(methodCode);
+            if (existingMethod) {
+                existingMethod.initialize = async function () {
+                    await initOnActivate();
+                };
+                existingMethod.uninitialize = async function () {
+                    onDeactivate();
+                };
+                existingMethod.placeOrderViaJs = function () {
+                    return true;
+                };
+                return;
+            }
+
+            hyvaCheckout.payment.registerMethod({
+                code: methodCode,
+                method: {
+                    initialize: async function () {
+                        await initOnActivate();
+                    },
+                    uninitialize: async function () {
+                        onDeactivate();
+                    },
+                    placeOrderViaJs: function () {
+                        return true;
+                    }
+                }
+            });
+        }
+
+        return {
+            init() {
+                if (!window.hipayPaymentBus) return;
+
+                registerWithHyvaOnce();
+
+                window.hipayPaymentBus.register(methodCode, {
+                    onActivate: initOnActivate,
+                    onDeactivate: onDeactivate
+                });
+
+                startQuoteObserver();
+                startGrandTotalObserver();
+
+                window.hipayPaymentBus.ensureActive(methodCode);
+            }
+        };
+    }
+
+    window.addEventListener(
+        "alpine:init",
+        () => Alpine.data("hipayCheckoutApplePay", hipayCheckoutApplePay),
+        { once: true }
+    );
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

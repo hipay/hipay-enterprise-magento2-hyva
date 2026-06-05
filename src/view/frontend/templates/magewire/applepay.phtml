@@ -15,219 +15,69 @@
 
 declare(strict_types=1);
 
-use HiPay\FullserviceHyvaCheckout\Magewire\CardMethod;
+use HiPay\FullserviceHyvaCheckout\Magewire\ApplePayMethod;
 use HiPay\FullserviceHyvaCheckout\ViewModel\Config;
 use HiPay\FullserviceMagento\Model\Method\ApplePay;
 use Hyva\Theme\Model\ViewModelRegistry;
 use Magento\Framework\Escaper;
 
 /** @var ViewModelRegistry $viewModels */
-/** @var CardMethod $magewire */
+/** @var ApplePayMethod $magewire */
 /** @var Escaper $escaper */
-$configViewModel = $viewModels->require(Config::class);
-$quoteInfo = $magewire->getQuoteInformation();
+
+$configViewModel    = $viewModels->require(Config::class);
+$quoteInformations  = $magewire->getQuoteInformations();
 ?>
-
-<div>
-    <script>
-        (() => {
-            const HIPAY_METHOD_APPLE_PAY = '<?= ApplePay::HIPAY_METHOD_CODE ?>';
-            const HIPAY_METHOD_APPLE_PAY_SELECTOR = 'hipay-apple-pay-button';
-            const HIPAY_METHOD_APPLE_PAY_WIRE_ID = '<?= $magewire->getId() ?>';
-            window.addEventListener('checkout:payment:method-activate', (event) => {
-                if (event.detail && event.detail.method === HIPAY_METHOD_APPLE_PAY) {
-                    hyvaCheckout.payment.activate(HIPAY_METHOD_APPLE_PAY, {
-                        hiPayApplePayConfig: <?= /* @noEscape */ $configViewModel->getSerializedApplePayConfig() ?>,
-                        hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
-                        quoteInformations: {
-                            grandTotal: <?= $escaper->escapeJs($magewire->quoteInformations['base_grand_total']) ?>,
-                            countryCode: '<?= $escaper->escapeJs($magewire->quoteInformations['country_id']) ?>',
-                            currencyCode: '<?= $escaper->escapeJs($magewire->quoteInformations['currency_code']) ?>'
-                        },
-                        component: {
-                            creditCardToken: null,
-                            creditCardType: 'cb',
-                            instanceApplePay: null,
-                            eci: '',
-                            placeOrderStatusUrl: '',
-                            afterPlaceOrderUrl: '',
-                            env: 'stage',
-                            apiUsernameTokenJs: '',
-                            apiPasswordTokenJs: '',
-                            merchantId: '',
-                            displayName: '',
-                            buttonType: 'plain',
-                            buttonColor: 'black',
-                            locale: 'en_us'
-                        },
-                        async initialize() {
-                            this._initializeComponent();
-
-                            const applePayMessage = document.getElementById('applepay-message');
-                            if (await this._isApplePayAllowed()) {
-                                this._initApplePay();
-                                if (applePayMessage.length > 0) {
-                                    applePayMessage.remove();
-                                }
-                            } else {
-                                if (this.el) {
-                                    this.el.remove();
-                                    if (applePayMessage.length > 0) {
-                                        applePayMessage.classList.remove('hidden');
-                                    }
-                                }
-                            }
-                            document.querySelector('.btn-place-order').setAttribute('disabled', 'disabled');
-                        },
-                        _initializeComponent() {
-                            const {hipay_applepay} = this.hiPayApplePayConfig.payment;
-                            const {hiPayFullservice} = this.hiPayGeneralConfig.payment;
-
-                            if (hipay_applepay) {
-                                this.component = {
-                                    ...this.component,
-                                    ...{
-                                        env: hipay_applepay.env,
-                                        apiUsernameTokenJs: hipay_applepay.apiUsernameTokenJs,
-                                        apiPasswordTokenJs: hipay_applepay.apiPasswordTokenJs,
-                                        merchantId: hipay_applepay.merchant_id,
-                                        displayName: hipay_applepay.display_name,
-                                        buttonType: hipay_applepay.button_type,
-                                        buttonColor: hipay_applepay.button_color
-                                    }
-                                }
-                            }
-
-                            if (hiPayFullservice) {
-                                this.component = {
-                                    ...this.component,
-                                    ...{
-                                        eci: hiPayFullservice.defaultEci,
-                                        placeOrderStatusUrl: hiPayFullservice.placeOrderStatusUrl.hipay_applepay,
-                                        afterPlaceOrderUrl: hiPayFullservice.afterPlaceOrderUrl.hipay_applepay,
-                                        locale: hiPayFullservice.locale.hipay_applepay
-                                    }
-                                }
-                            }
-                        },
-                        _isApplePayAllowed() {
-                            if (!this.component.displayName) {
-                                return false;
-                            }
-
-                            return new Promise((resolve) => {
-                                if (this.component.merchantId) {
-                                    this._initHipaySdk();
-                                    window.hipaySdk
-                                        .canMakePaymentsWithActiveCard(this.component.merchantId)
-                                        .then((canMakePayments) => {
-                                            resolve(canMakePayments);
-                                        });
-                                } else {
-                                    const canMakePayments = window.ApplePaySession ?
-                                        window.ApplePaySession.canMakePayments() :
-                                        false;
-
-                                    resolve(canMakePayments);
-                                }
-                            });
-                        },
-                        _initApplePay() {
-                            if (window.hipaySdk) {
-                                this._createApplePay();
-                            } else {
-                                this._initHipaySdk();
-                                this._createApplePay();
-                            }
-                        },
-                        _createApplePay() {
-                            const applePayConfig = {
-                                displayName: this.component.displayName,
-                                request: {
-                                    countryCode: this.quoteInformations.countryCode,
-                                    currencyCode: this.quoteInformations.currencyCode,
-                                    total: {
-                                        label: this.component.displayName,
-                                        amount: Number(this.quoteInformations.grandTotal).toFixed(2)
-                                    }
-                                },
-                                selector: HIPAY_METHOD_APPLE_PAY_SELECTOR,
-                                applePayStyle: {
-                                    type: this.component.buttonType,
-                                    color: this.component.buttonColor
-                                }
-                            };
-
-                            this.component.instanceApplePay = window.hipaySdk.create(
-                                'paymentRequestButton',
-                                applePayConfig
-                            );
-
-                            if (this.component.instanceApplePay) {
-                                hyvaCheckout.navigation.disableButtonPlaceOrder();
-                                this._bindApplePayEvents();
-                            }
-                        },
-                        _initHipaySdk() {
-                            let lang = 'en';
-
-                            if (this.component.locale && this.component.locale.length > 2) {
-                                lang = this.component.locale.substr(0, 2);
-                            }
-
-                            window.hipaySdk = new HiPay({
-                                username: this.component.apiUsernameTokenJs,
-                                password: this.component.apiPasswordTokenJs,
-                                environment: this.component.env,
-                                lang: lang
-                            });
-                        },
-                        _bindApplePayEvents() {
-                            this.component.instanceApplePay.on('paymentAuthorized', (response) => {
-                                this.component.creditCardToken = response.token;
-                                this.component.creditCardType = response.brand.toLowerCase().replace(/ /g, '-') || this.component.creditCardType;
-
-                                const paymentData = {
-                                    ccType: this.component.creditCardType,
-                                    additionalData: {
-                                        card_token: this.component.creditCardToken,
-                                        eci: this.component.eci,
-                                        cc_type: this.component.creditCardType,
-                                    }
-                                }
-
-                                Magewire.find(HIPAY_METHOD_APPLE_PAY_WIRE_ID)
-                                    .call('setPaymentData', paymentData)
-                                    .then(() => {
-                                        hyvaCheckout.main.getWireComponent()
-                                            .placeOrder()
-                                            .then(() => {
-                                                this.component.instanceApplePay.completePaymentWithSuccess();
-                                            });
-                                    })
-                                    .catch(() => {
-                                        this.component.instanceApplePay.completePaymentWithFailure();
-                                    });
-                            });
-                        },
-                        placeOrderViaJs() {
-                            return true;
-                        }
-                    }, document.getElementById(HIPAY_METHOD_APPLE_PAY_SELECTOR));
-                }
-            });
-        })();
-    </script>
-
+<div
+    x-data="hipayCheckoutApplePay"
+    data-method="<?= $escaper->escapeHtmlAttr(ApplePay::HIPAY_METHOD_CODE) ?>"
+    data-wire-id="<?= $escaper->escapeHtmlAttr($magewire->getId()) ?>"
+    data-selector-id="hipay-apple-pay-button"
+    data-toc-enabled="<?= $configViewModel->isTOCEnabled() ? '1' : '0' ?>"
+    data-applepay-config="<?= $escaper->escapeHtmlAttr($configViewModel->getSerializedApplePayConfig()) ?>"
+    data-general-config="<?= $escaper->escapeHtmlAttr($configViewModel->getSerializedConfig()) ?>"
+    data-grand-total="<?= $escaper->escapeHtmlAttr((string) ($quoteInformations['base_grand_total'] ?? '0')) ?>"
+    data-country-code="<?= $escaper->escapeHtmlAttr((string) ($quoteInformations['country_id'] ?? '')) ?>"
+    data-currency-code="<?= $escaper->escapeHtmlAttr((string) ($quoteInformations['currency_code'] ?? '')) ?>"
+>
     <div class="hipay-field-container apple-container">
+        <?php if ($configViewModel->isTOCEnabled()): ?>
+            <div
+                id="applepay-toc-message"
+                data-role="applepay-agreements-warning"
+                class="hidden mt-2 text-sm text-red-600"
+                role="alert"
+                aria-live="polite"
+            >
+                <?= $escaper->escapeHtml(__('Please agree with the terms of conditions below')) ?>
+            </div>
+        <?php endif; ?>
+
+        <div
+            id="applepay-required-fields-message"
+            data-role="applepay-required-fields-warning"
+            class="hidden mt-2 text-sm text-red-600"
+            role="alert"
+            aria-live="polite"
+        >
+            <?= $escaper->escapeHtml(__('Please complete the required fields to pay with Apple Pay.')) ?>
+        </div>
+
         <div
             class="hipay-payment-request-button"
             id="hipay-apple-pay-button"
+            wire:ignore
         ></div>
+
         <div class="message warning hidden" id="applepay-message">
             <div>
                 <span>
-                    <?= $escaper->escapeHtml(__('Your browser isn\'t compatible with Apple Pay or you don\'t have credit card on your device.')) ?>
+                    <?= $escaper->escapeHtml(
+                        __(
+                            'Your browser isn\'t compatible with Apple Pay or you don\'t have credit card ' .
+                            'on your device.'
+                        )
+                    ) ?>
                 </span>
             </div>
         </div>

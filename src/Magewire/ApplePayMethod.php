@@ -25,8 +25,27 @@ use Magewirephp\Magewire\Component;
  */
 class ApplePayMethod extends Component
 {
-    public array $quoteInformations = [];
+    private const LISTENERS = [
+        'coupon_code_applied' => 'refresh',
+        'coupon_code_revoked' => 'refresh',
+        'billing_address_activated' => 'refresh',
+        'billing_address_submitted' => 'refresh',
+        'billing_as_shipping_address_updated' => 'refresh',
+        'shipping_address_activated' => 'refresh',
+        'shipping_address_submitted' => 'refresh',
+        'guest_shipping_address_submitted' => 'refresh',
+        'guest_shipping_address_saved' => 'refresh',
+    ];
 
+    /**
+     * @var array<string, string>
+     */
+    protected $listeners = self::LISTENERS;
+
+    /**
+     * @param Session $checkoutSession
+     * @param CartRepositoryInterface $quoteRepository
+     */
     public function __construct(
         private Session $checkoutSession,
         private CartRepositoryInterface $quoteRepository
@@ -34,21 +53,17 @@ class ApplePayMethod extends Component
     }
 
     /**
-     * @throws LocalizedException
-     * @throws NoSuchEntityException
+     * Force a Magewire refresh so the component re-renders with up-to-date quote data.
      */
-    public function mount(): void
+    public function refresh(): void
     {
-        $quote = $this->checkoutSession->getQuote();
-
-        $this->quoteInformations = [
-            'country_id' => $quote->getBillingAddress()->getCountryId(),
-            'currency_code' => $quote->getQuoteCurrencyCode(),
-            'base_grand_total' => $quote->getGrandTotal(),
-        ];
+        // Intentionally empty: used to trigger Magewire re-render
     }
 
     /**
+     * Persist Apple Pay payment data on the active quote payment.
+     *
+     * @param array $value
      * @throws LocalizedException
      * @throws NoSuchEntityException
      */
@@ -56,9 +71,28 @@ class ApplePayMethod extends Component
     {
         $quote = $this->checkoutSession->getQuote();
         $payment = $quote->getPayment();
-        $payment->setAdditionalInformation($value['additionalData']);
-        $payment->setCcType($value['ccType']);
+        $payment->setAdditionalInformation($value['additionalData'] ?? null);
+        $payment->setCcType((string) ($value['ccType'] ?? ''));
         $quote->setPayment($payment);
         $this->quoteRepository->save($quote);
+    }
+
+    /**
+     * Return quote data required by the Apple Pay frontend initializer.
+     *
+     * @return array{country_id: string, currency_code: string, base_grand_total: float}
+     * @throws LocalizedException
+     * @throws NoSuchEntityException
+     */
+    public function getQuoteInformations(): array
+    {
+        $quote = $this->checkoutSession->getQuote();
+        $billingAddress = $quote->getBillingAddress();
+
+        return [
+            'country_id' => $billingAddress ? (string) $billingAddress->getCountryId() : '',
+            'currency_code' => (string) $quote->getQuoteCurrencyCode(),
+            'base_grand_total' => (float) $quote->getGrandTotal(),
+        ];
     }
 }

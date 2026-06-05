@@ -7,6 +7,8 @@ namespace HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment;
 use HiPay\FullserviceMagento\Model\Method\HostedMethod;
 use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
 use Magento\Checkout\Model\Session;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Quote\Api\CartManagementInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
 
@@ -25,6 +27,14 @@ use Magento\Sales\Api\OrderRepositoryInterface;
  */
 class PlaceCcOrderService extends PlaceOrderService
 {
+    /**
+     * Initialize the credit-card specific place-order service.
+     *
+     * @param CartManagementInterface $cartManagement
+     * @param OrderRepositoryInterface $orderRepository
+     * @param GenericConfigProvider $genericConfigProvider
+     * @param Session $checkoutSession
+     */
     public function __construct(
         CartManagementInterface $cartManagement,
         OrderRepositoryInterface $orderRepository,
@@ -34,19 +44,22 @@ class PlaceCcOrderService extends PlaceOrderService
         parent::__construct($cartManagement, $orderRepository);
     }
 
+    /**
+     * Determine whether the hosted card flow should redirect after order placement.
+     *
+     * @return bool
+     * @throws LocalizedException
+     * @throws NoSuchEntityException
+     */
     public function canRedirect(): bool
     {
         $quote = $this->checkoutSession->getQuote();
+        $paymentConfig = $this->genericConfigProvider->getConfig()['payment'] ?? [];
 
-        // In the method hosted case with oneclick payment and iframe mode activated,
-        // We must check this additional data is present in order to be able to redirect immediately to success page
         if ($quote->getPayment()->getAdditionalInformation('can_redirect')) {
             return true;
         }
 
-        // If can_redirect parameter doesn't and iframe mode is enabled,
-        // Redirection is disabled in order to let user fill the iframe
-        // Otherwise, redirection is enabled and credit card are filled in next step
-        return !$this->genericConfigProvider->getConfig()['payment']['hiPayFullservice']['isIframeMode'][HostedMethod::HIPAY_METHOD_CODE];
+        return !($paymentConfig['hiPayFullservice']['isIframeMode'][HostedMethod::HIPAY_METHOD_CODE] ?? false);
     }
 }
