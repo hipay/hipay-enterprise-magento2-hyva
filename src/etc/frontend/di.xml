@@ -31,12 +31,24 @@
     <type name="Hyva\Checkout\Model\Magewire\Payment\PlaceOrderServiceProvider">
         <arguments>
             <argument name="placeOrderServiceList" xsi:type="array">
-                <item name="hipay_hosted" xsi:type="object">HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceCcOrderService</item>
-                <item name="hipay_hosted_fields" xsi:type="object">HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService</item>
-                <item name="hipay_applepay" xsi:type="object">HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService</item>
-                <item name="hipay_paypalapi" xsi:type="object">HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService</item>
-                <item name="hipay_alma3X" xsi:type="object">HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService</item>
-                <item name="hipay_alma4X" xsi:type="object">HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService</item>
+                <item name="hipay_hosted" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceCcOrderService
+                </item>
+                <item name="hipay_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_applepay" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_paypalapi" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_alma3X" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_alma4X" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
             </argument>
         </arguments>
     </type>
@@ -59,5 +71,9 @@
         <arguments>
             <argument name="checkoutSession" xsi:type="object">Magento\Checkout\Model\Session\Proxy</argument>
         </arguments>
+    </type>
+    <type name="Hyva\Checkout\Magewire\Checkout\Payment\MethodList">
+        <plugin name="hipay_hyva_payment_methodlist_extra_listeners"
+                type="HiPay\FullserviceHyvaCheckout\Plugin\Hyva\PaymentMethodListPlugin"/>
     </type>
 </config>

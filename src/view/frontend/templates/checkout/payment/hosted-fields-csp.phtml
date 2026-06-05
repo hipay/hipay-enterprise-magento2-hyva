@@ -1,0 +1,567 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    /**
+     * Hosted-fields payment renderer for Hyvä Checkout.
+     */
+    function hipayCheckoutHostedFields() {
+        const alpineRoot = this.$el;
+
+        const methodCode = alpineRoot.dataset.method;
+        const wireId = alpineRoot.dataset.wireId;
+
+        let hiPayCcConfig = {};
+        let hiPayGeneralConfig = {};
+        let customerInfo = {};
+        let customerCards = [];
+
+        try { hiPayCcConfig = JSON.parse(alpineRoot.dataset.ccConfig || "{}"); } catch (e) {}
+        try { hiPayGeneralConfig = JSON.parse(alpineRoot.dataset.generalConfig || "{}"); } catch (e) {}
+        try { customerInfo = JSON.parse(alpineRoot.dataset.customerInfo || "{}"); } catch (e) {}
+        try { customerCards = JSON.parse(alpineRoot.dataset.customerCards || "[]"); } catch (e) {}
+
+        const component = {
+            createOneclick: false,
+            showCcForm: true,
+            env: "",
+            apiUsernameTokenJs: "",
+            apiPasswordTokenJs: "",
+            locale: "en",
+            sdkJsUrl: "",
+            hipayHostedFields: null,
+            configHipay: null,
+            hipayHFstatus: false,
+            isPlaceOrderAllowed: false,
+            placeOrderBtn: null,
+            eci: "",
+            useOneClick: false,
+            oneClick: {
+                enabled: false,
+                maxCard: 0,
+                selectedCard: ""
+            },
+            cardTypes: {
+                availableTypes: {},
+                icons: {}
+            },
+            style: {}
+        };
+
+        const selectors = {
+            oneClickContainer: null
+        };
+
+        let hyvaRegistered = false;
+        let listenersBoundForDom = false;
+
+        function getHyvaDomRoot() {
+            return document.getElementById("hipay-container-hosted-fields");
+        }
+
+        // Resolve element by id with local-root priority and global fallback.
+        function $(id) {
+            const root = getHyvaDomRoot();
+            if (!root) return document.getElementById(id);
+            return root.querySelector("#" + id) || document.getElementById(id);
+        }
+
+        // Map HiPay card brand codes to SDK brand identifiers.
+        function getAvailableBrands(brand) {
+            const result = new Set();
+            Object.entries(brand || {}).forEach(([key]) => {
+                switch (key) {
+                    case "VI":
+                        result.add("visa");
+                        result.add("cb");
+                        break;
+                    case "MC":
+                        result.add("mastercard");
+                        break;
+                    case "AE":
+                        result.add("american-express");
+                        break;
+                    case "MI":
+                        result.add("maestro");
+                        result.add("bcmc");
+                        break;
+                }
+            });
+            return Array.from(result);
+        }
+
+        // Check whether customer has at least one saved card compatible with allowed brands.
+        function customerHasCard() {
+            const availableBrands = getAvailableBrands(component.cardTypes.availableTypes);
+            return (
+                Array.isArray(customerCards) &&
+                customerCards.length > 0 &&
+                customerCards.some((card) => availableBrands.includes(card.brand))
+            );
+        }
+
+        function setPlaceOrderDisabled(disabled) {
+            component.isPlaceOrderAllowed = !disabled;
+
+            if (!component.placeOrderBtn) {
+                component.placeOrderBtn = document.querySelector(".btn-place-order");
+            }
+
+            if (!component.placeOrderBtn) {
+                return;
+            }
+
+            if (disabled) {
+                component.placeOrderBtn.setAttribute("disabled", "disabled");
+            } else {
+                component.placeOrderBtn.removeAttribute("disabled");
+            }
+        }
+
+        // Read backend config and populate runtime component state.
+        function initComponent() {
+            const hf = hiPayCcConfig?.payment?.hipay_hosted_fields;
+            const full = hiPayGeneralConfig?.payment?.hiPayFullservice;
+
+            component.placeOrderBtn = document.querySelector(".btn-place-order");
+
+            if (hf) {
+                component.env = hf.env;
+                component.apiUsernameTokenJs = hf.apiUsernameTokenJs;
+                component.apiPasswordTokenJs = hf.apiPasswordTokenJs;
+                component.sdkJsUrl = hf.sdkJsUrl;
+
+                component.oneClick.enabled = !!hf.useOneClick;
+                component.oneClick.maxCard = parseInt(hf.oneClickMaxCards || 0, 10);
+
+                component.cardTypes.availableTypes = hf.availableTypes || {};
+                component.cardTypes.icons = hf.icons || {};
+
+                component.style = {
+                    color: hf.color,
+                    fontFamily: hf.fontFamily,
+                    fontSize: hf.fontSize,
+                    fontWeight: hf.fontWeight,
+                    placeholderColor: hf.placeholderColor,
+                    caretColor: hf.caretColor,
+                    iconColor: hf.iconColor,
+                    oneClickHighlightColor: hf.oneClickHighlightColor,
+                    oneClickToggleColor: hf.oneClickToggleColor
+                };
+            }
+
+            if (full) {
+                component.locale = full.locale?.hipay_hosted_fields || component.locale;
+                component.useOneClick = !!full.useOneclick?.hipay_hosted_fields;
+                component.eci = full.defaultEci || component.eci;
+            }
+
+            selectors.oneClickContainer = $("hipay-saved-card-button");
+            setPlaceOrderDisabled(true);
+        }
+
+        // Build HiPay hosted-fields configuration object.
+        function initFieldsData() {
+            const billingAddress = customerInfo || {};
+            const customerFirstName = billingAddress.firstName || "";
+            const customerLastName = billingAddress.lastName || "";
+
+            const hostedFieldsStyle = component.style || {};
+
+            component.configHipay = {
+                selector: "hipay-container-hosted-fields",
+                brand: getAvailableBrands(component.cardTypes.availableTypes),
+                one_click: {
+                    enabled: component.oneClick.enabled,
+                    cards_display_count: component.oneClick.maxCard,
+                    cards: customerCards || []
+                },
+                fields: {
+                    savedCards: { selector: "hipay-saved-cards" },
+                    cardHolder: {
+                        selector: "hipay-card-holder",
+                        defaultFirstname: customerFirstName,
+                        defaultLastname: customerLastName
+                    },
+                    cardNumber: { selector: "hipay-card-number" },
+                    expiryDate: { selector: "hipay-date-expiry" },
+                    cvc: {
+                        selector: "hipay-cvc",
+                        helpButton: true,
+                        helpSelector: "hipay-help-cvc"
+                    },
+                    savedCardButton: { selector: "hipay-saved-card-button" }
+                },
+                styles: {
+                    base: {
+                        fontFamily: hostedFieldsStyle.fontFamily,
+                        color: hostedFieldsStyle.color,
+                        fontSize: hostedFieldsStyle.fontSize,
+                        fontWeight: hostedFieldsStyle.fontWeight,
+                        placeholderColor: hostedFieldsStyle.placeholderColor,
+                        caretColor: hostedFieldsStyle.caretColor,
+                        iconColor: hostedFieldsStyle.iconColor
+                    },
+                    components: {
+                        switch: { mainColor: hostedFieldsStyle.oneClickToggleColor },
+                        checkbox: { mainColor: hostedFieldsStyle.oneClickHighlightColor }
+                    }
+                }
+            };
+        }
+
+        // Initialize HiPay SDK for hosted fields.
+        function initHipaySdk() {
+            const lang = component.locale && component.locale.length > 2
+                ? component.locale.substr(0, 2)
+                : "en";
+
+            window.hipaySdk = new HiPay({
+                username: component.apiUsernameTokenJs,
+                password: component.apiPasswordTokenJs,
+                environment: component.env,
+                lang: lang
+            });
+        }
+
+        // Remove previously injected hosted-fields iframes and reset containers.
+        function emptyHostedFieldsTargets() {
+            const ids = [
+                "hipay-saved-cards",
+                "hipay-card-holder",
+                "hipay-card-number",
+                "hipay-date-expiry",
+                "hipay-cvc",
+                "hipay-help-cvc",
+                "hipay-saved-card-button"
+            ];
+            ids.forEach((id) => {
+                const el = $(id);
+                if (el) el.innerHTML = "";
+            });
+
+            listenersBoundForDom = false;
+        }
+
+        // Bind click handlers for rendered saved-card elements.
+        function bindSavedCardsEvents() {
+            const root = getHyvaDomRoot();
+            if (!root) return;
+
+            const savedCards = root.querySelectorAll("#hipay-saved-cards .saved-card");
+            savedCards.forEach((savedCard) => {
+                savedCard.addEventListener("click", (e) => selectCard(e, savedCard));
+            });
+        }
+
+        function setupSavedCards() {
+            const savedCardsContainer = $("hipay-saved-cards");
+            if (savedCardsContainer && savedCardsContainer.querySelector(".saved-card")) {
+                bindSavedCardsEvents();
+            }
+        }
+
+        function selectCard(e, savedCard) {
+            const checkbox = savedCard.querySelector('input[type="checkbox"]');
+            const selectedCard = document.querySelector(".saved-card.checked");
+
+            if (checkbox && !checkbox.checked) {
+                component.oneClick.selectedCard = checkbox.getAttribute("id");
+                component.eci = hiPayGeneralConfig?.payment?.hiPayFullservice?.recurringEci || component.eci;
+            } else {
+                component.eci = hiPayGeneralConfig?.payment?.hiPayFullservice?.defaultEci || component.eci;
+            }
+
+            if (!selectedCard && component.showCcForm) {
+                const payOtherCard = $("pay-other-card");
+                if (payOtherCard) payOtherCard.click();
+            }
+        }
+
+        // Sync one-click state with hosted-fields instance.
+        function updateOneClick(state) {
+            component.createOneclick = !!state;
+            if (component.hipayHostedFields) {
+                component.hipayHostedFields.setMultiUse(component.useOneClick && state);
+            }
+        }
+
+        // Bind one-click toggle once after DOM is available.
+        function bindFields() {
+            if (listenersBoundForDom) return;
+            listenersBoundForDom = true;
+
+            selectors.oneClickContainer = $("hipay-saved-card-button");
+            if (!selectors.oneClickContainer) return;
+
+            selectors.oneClickContainer.addEventListener("click", () => {
+                const oneClickCheckbox = selectors.oneClickContainer.querySelector('input[type="checkbox"]');
+                if (oneClickCheckbox) updateOneClick(oneClickCheckbox.checked);
+            });
+        }
+
+        // Handle the "pay with other card" toggling behavior.
+        function toggleCardForm() {
+            const payOtherCard = $("pay-other-card");
+            const ccForm = document.querySelector(".hipay-hosted-fields-form");
+
+            if (!payOtherCard || !ccForm) return;
+
+            payOtherCard.addEventListener("click", () => {
+                const selectedCard = document.querySelector(".saved-card.checked");
+                if (component.showCcForm) {
+                    component.showCcForm = !component.showCcForm;
+                    ccForm.style.display = "none";
+                    return;
+                }
+
+                if (selectedCard) selectedCard.click();
+                ccForm.style.display = "block";
+                component.showCcForm = !component.showCcForm;
+            });
+        }
+
+        // Bind hosted-fields SDK events once instance is ready.
+        function bindHostedFields() {
+            if (!component.hipayHostedFields) return;
+
+            component.hipayHostedFields.on("change", (data) => {
+                if (!data.valid || data.error) {
+                    setPlaceOrderDisabled(true);
+                } else {
+                    setPlaceOrderDisabled(false);
+                }
+            });
+
+            component.hipayHostedFields.on("blur", (data) => {
+                const domElement = document.querySelector(
+                    "[data-hipay-id='hipay-card-field-error-" + data.element + "']"
+                );
+
+                if (!domElement) {
+                    return;
+                }
+
+                if (!data.validity.valid && !data.validity.empty) {
+                    domElement.innerText = data.validity.error;
+                } else {
+                    domElement.innerText = "";
+                }
+            });
+
+            component.hipayHostedFields.on("inputChange", (data) => {
+                const domElement = document.querySelector(
+                    "[data-hipay-id='hipay-card-field-error-" + data.element + "']"
+                );
+
+                if (!domElement) {
+                    return;
+                }
+
+                if (!data.validity.valid && !data.validity.potentiallyValid) {
+                    domElement.innerText = data.validity.error;
+                } else {
+                    domElement.innerText = "";
+                }
+            });
+
+            component.hipayHostedFields.on("ready", () => {
+                toggleCardForm();
+                setupSavedCards();
+
+                const payOtherCard = $("pay-other-card");
+                if (payOtherCard) payOtherCard.click();
+            });
+        }
+
+        function domHasInjectedFields() {
+            const holder = $("hipay-card-holder");
+            return !!(holder && holder.querySelector("iframe"));
+        }
+
+        // Create hosted-fields widget only if not already injected.
+        function createHostedFieldsIfNeeded() {
+            if (component.hipayHostedFields && domHasInjectedFields()) {
+                setupSavedCards();
+                return;
+            }
+
+            component.hipayHostedFields = null;
+
+            emptyHostedFieldsTargets();
+
+            if (!window.hipaySdk) initHipaySdk();
+
+            component.hipayHostedFields = window.hipaySdk.create("card", component.configHipay);
+            bindHostedFields();
+            component.showCcForm = component.oneClick.enabled && customerHasCard();
+        }
+
+        function prepareUi() {
+            initComponent();
+            initFieldsData();
+            bindFields();
+        }
+
+        function ensureUiOnActivate() {
+            const root = getHyvaDomRoot();
+            if (!root) return;
+
+            prepareUi();
+            createHostedFieldsIfNeeded();
+        }
+
+        // Persist tokenized card data into quote additional_data payload.
+        function getPaymentData(response) {
+            return {
+                additionalData: {
+                    create_oneclick: response.one_click,
+                    card_token: response.token,
+                    payment_product: response.payment_product,
+                    cc_owner: response.card_holder,
+                    card_pan: response.pan,
+                    card_expiry_month: response.card_expiry_month,
+                    card_expiry_year: response.card_expiry_year,
+                    card_multi_use: response.multi_use,
+                    eci: component.eci,
+                    cc_type: response.payment_product,
+                    fingerprint: response.device_fingerprint
+                }
+            };
+        }
+
+        // Request payment token from hosted-fields and place order.
+        async function placeOrder() {
+            if (!component.hipayHostedFields) return;
+
+            if (component.oneClick.selectedCard === "") {
+                component.eci = hiPayGeneralConfig?.payment?.hiPayFullservice?.defaultEci || component.eci;
+            }
+
+            component.hipayHostedFields.getPaymentData().then(
+                (response) => {
+                    if (response.token && response.payment_product && response.device_fingerprint) {
+                        Magewire.find(wireId)
+                            .call("setPaymentData", getPaymentData(response))
+                            .then(() => {
+                                hyvaCheckout.main.getWireComponent().placeOrder();
+                            });
+                    } else {
+                        throw response.error;
+                    }
+                },
+                (errors) => {
+                    for (let error in errors) {
+                        throw errors[error].error;
+                    }
+                }
+            );
+        }
+
+        // Register this payment method in Hyvä Checkout once.
+        function registerWithHyvaOnce() {
+            const hyvaRoot = getHyvaDomRoot();
+            if (!hyvaRoot) return;
+
+            if (hyvaRegistered) return;
+            const existingMethod = hyvaCheckout.payment.getByCode(methodCode);
+
+            if (existingMethod) {
+                existingMethod.hiPayCcConfig = hiPayCcConfig;
+                existingMethod.hiPayGeneralConfig = hiPayGeneralConfig;
+                existingMethod.selectors = selectors;
+                existingMethod.component = component;
+                existingMethod.initialize = async function () {
+                    prepareUi();
+                };
+                existingMethod.uninitialize = async function () {
+                    onDeactivate();
+                };
+                existingMethod.placeOrderViaJs = function () {
+                    return true;
+                };
+                existingMethod.placeOrder = async function () {
+                    return placeOrder();
+                };
+
+                hyvaRegistered = true;
+                prepareUi();
+                return;
+            }
+
+            hyvaRegistered = true;
+
+            hyvaCheckout.payment.registerMethod({
+                code: methodCode,
+                method: {
+                    hiPayCcConfig: hiPayCcConfig,
+                    hiPayGeneralConfig: hiPayGeneralConfig,
+                    selectors: selectors,
+                    component: component,
+
+                    async initialize() {
+                        prepareUi();
+                    },
+
+                    async uninitialize() {
+                        onDeactivate();
+                    },
+
+                    placeOrderViaJs() {
+                        return true;
+                    },
+
+                    async placeOrder() {
+                        return placeOrder();
+                    }
+                }
+            });
+
+            prepareUi();
+        }
+
+        function onDeactivate() {
+            setPlaceOrderDisabled(false);
+        }
+
+        return {
+            init() {
+                if (!window.hipayPaymentBus) return;
+
+                registerWithHyvaOnce();
+
+                window.hipayPaymentBus.register(methodCode, {
+                    onActivate: ensureUiOnActivate,
+                    onDeactivate: onDeactivate
+                });
+
+                window.hipayPaymentBus.ensureActive(methodCode);
+            }
+        };
+    }
+
+    window.addEventListener(
+        "alpine:init",
+        () => Alpine.data("hipayCheckoutHostedFields", hipayCheckoutHostedFields),
+        { once: true }
+    );
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

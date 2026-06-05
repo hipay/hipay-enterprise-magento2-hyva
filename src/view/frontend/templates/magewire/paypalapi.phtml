@@ -16,214 +16,87 @@
 declare(strict_types=1);
 
 use HiPay\FullserviceHyvaCheckout\Magewire\PayPalMethod;
-use HiPay\FullserviceMagento\Model\Method\Paypal;
 use HiPay\FullserviceHyvaCheckout\ViewModel\Config;
+use HiPay\FullserviceMagento\Model\Method\Paypal;
 use Hyva\Theme\Model\ViewModelRegistry;
+use Magento\Csp\ViewModel\NonceProvider;
 use Magento\Framework\Escaper;
 
 /** @var ViewModelRegistry $viewModels */
 /** @var Escaper $escaper */
 /** @var PayPalMethod $magewire */
 $configViewModel = $viewModels->require(Config::class);
-$isPayPalV2 = $configViewModel->isPayPalV2();
+$nonceViewModel = $viewModels->require(NonceProvider::class);
+$isPayPalV2 = (bool) $configViewModel->isPayPalV2();
+
+$quote = (array) $magewire->getQuoteInformations();
+$amount = (string) ($quote['base_total'] ?? '0');
+$currency = (string) ($quote['currency_code'] ?? 'EUR');
 ?>
+<div
+    x-data="hipayCheckoutPaypalApi"
+    data-wire-id="<?= $escaper->escapeHtmlAttr($magewire->getId()) ?>"
+    data-method="<?= $escaper->escapeHtmlAttr(Paypal::HIPAY_METHOD_CODE) ?>"
+    data-is-paypal-v2="<?= $isPayPalV2 ? '1' : '0' ?>"
+    data-toc-enabled="<?= $configViewModel->isTOCEnabled() ? '1' : '0' ?>"
+    data-config="<?= $escaper->escapeHtmlAttr($configViewModel->getSerializedConfig()) ?>"
+    data-paypal-config="<?= $escaper->escapeHtmlAttr($configViewModel->getSerializedPayPalConfig()) ?>"
+    data-api-env="<?= $escaper->escapeHtmlAttr((string) $configViewModel->getApiEnv()) ?>"
+    data-api-username-token-js="<?= $escaper->escapeHtmlAttr((string) $configViewModel->getApiUsernameTokenJs()) ?>"
+    data-api-password-token-js="<?= $escaper->escapeHtmlAttr((string) $configViewModel->getApiPasswordTokenJs()) ?>"
+    data-amount="<?= $escaper->escapeHtmlAttr($amount) ?>"
+    data-currency="<?= $escaper->escapeHtmlAttr($currency) ?>"
+    data-csp-nonce="<?= $escaper->escapeHtmlAttr((string)$nonceViewModel->getNonce()) ?>"
+    data-hipay-shipping-validation="<?=
+    $escaper->escapeHtmlAttr(
+        json_encode($magewire->validateCustomerShippingInformation() ?? null)
+    ) ?>"
+    data-i18n-fields="<?= $escaper->escapeHtmlAttr(json_encode([
+        'address'  => (string) __('address'),
+        'zipCode' => (string) __('postal code'),
+        'city'     => (string) __('city'),
+        'country'  => (string) __('country'),
+    ])) ?>"
+>
+    <?php if (!$isPayPalV2): ?>
+        <div class="text-sm text-slate-600">
+            <?= $escaper->escapeHtml(__('You will be redirected to the payment page after submitting the order.')) ?>
+        </div>
+    <?php else: ?>
+        <?php if ((int) $configViewModel->isTOCEnabled()): ?>
+            <div
+                id="paypal-toc-message"
+                data-role="paypal-agreements-warning"
+                class="hidden mt-2 text-sm text-red-600"
+                role="alert"
+                aria-live="polite"
+            >
+                <?= $escaper->escapeHtml(__('Please agree with the terms of conditions below')) ?>
+            </div>
+        <?php endif; ?>
 
-<script>
-    (() => {
-        const HIPAY_METHOD_PAYPAL_WIRE_ID = '<?= $escaper->escapeJs($magewire->getId()); ?>';
-        const HIPAY_METHOD_PAYPAL = '<?= $escaper->escapeJs(Paypal::HIPAY_METHOD_CODE) ?>';
-        window.addEventListener('checkout:payment:method-activate', (event) => {
-            if (event.detail && event.detail.method === HIPAY_METHOD_PAYPAL) {
-                if (<?= $escaper->escapeJs((int) $isPayPalV2); ?>) {
-                    hyvaCheckout.payment.activate(HIPAY_METHOD_PAYPAL, {
-                        hiPayGeneralConfig: <?= /* @noEscape */ $configViewModel->getSerializedConfig() ?>,
-                        hiPayPayPalConfig: <?= /* @noEscape */ $configViewModel->getSerializedPayPalConfig() ?>,
-                        component: {},
-                        paypalConfig: {},
-                        agreements: {
-                            enabled: <?= $escaper->escapeJs((int) $configViewModel->isTOCEnabled()); ?>,
-                            list: new Map(),
-                            allAgreementsChecked: false,
-                        },
+        <div
+            id="paypal-required-fields-message"
+            data-role="paypal-required-fields-warning"
+            class="hidden mt-2 text-sm text-red-600"
+            role="alert"
+            aria-live="polite"
+        >
+            <?= $escaper->escapeHtml(__('Please complete the required fields to pay with PayPal.')) ?>
+        </div>
 
-                        async initialize() {
-                            const HIPAY_METHOD_PAYPAL_CONFIG = this.hiPayPayPalConfig.payment[HIPAY_METHOD_PAYPAL]
-                            this.paypalConfig = {
-                                template: 'auto',
-                                selector: 'paypal-field',
-                                canPayLater: Boolean(HIPAY_METHOD_PAYPAL_CONFIG.bnpl),
-                                paypalButtonStyle: {
-                                    shape: HIPAY_METHOD_PAYPAL_CONFIG.button_shape,
-                                    height: parseInt(HIPAY_METHOD_PAYPAL_CONFIG.button_height ?? 40),
-                                    color: HIPAY_METHOD_PAYPAL_CONFIG.button_color,
-                                    label: HIPAY_METHOD_PAYPAL_CONFIG.button_label
-                                },
-                                request: {
-                                    amount: this._safeToFixed(<?= $magewire->getQuoteInformations()['base_total']; ?>),
-                                    currency: '<?= $escaper->escapeJs($magewire->getQuoteInformations()['currency_code']); ?>',
-                                    locale: this._convertToUpperCaseAfterUnderscore(this.hiPayGeneralConfig.payment.hiPayFullservice.locale[HIPAY_METHOD_PAYPAL])
-                                }
-                            }
+        <div id="paypal-invalid-address"
+             data-role="paypal-invalid-address"
+             class="hidden mt-2 text-sm text-red-600"
+             role="alert" aria-live="polite">
+            <span>
+                <?= $escaper->escapeHtml(
+                    __('Invalid delivery address. Please check or correct the following fields:')
+                ) ?>
+            </span>
+            <strong><span data-role="paypal-invalid-address-fields"></span></strong>
+        </div>
 
-                            this._initComponent();
-                        },
-
-                        _initComponent () {
-                            const { hiPayFullservice } =  this.hiPayGeneralConfig.payment;
-                            this.component = {
-                                ...this.component,
-                                ...{
-                                    env: '<?= $escaper->escapeJs($configViewModel->getApiEnv()); ?>',
-                                    apiUsernameTokenJs:  '<?= $escaper->escapeUrl($configViewModel->getApiUsernameTokenJs()); ?>',
-                                    apiPasswordTokenJs: '<?= $escaper->escapeJs($configViewModel->getApiPasswordTokenJs()); ?>',
-                                    afterPlaceOrderUrl: hiPayFullservice.afterPlaceOrderUrl[HIPAY_METHOD_PAYPAL]
-                                }
-                            };
-                            this._initHipaySdk();
-                            this._initTOCEvents();
-                            this._initHostedFields();
-                        },
-
-                        _safeToFixed (value, decimals = 2) {
-                            const factor = 10 ** decimals;
-                            const rounded =
-                                Math.round((parseFloat(value) + Number.EPSILON) * factor) / factor;
-                            return rounded.toFixed(decimals);
-                        },
-
-                        _convertToUpperCaseAfterUnderscore (str) {
-                            return str.replace(/_(\w+)/, (_, match) => `_${match.toUpperCase()}`)
-                        },
-
-                        _initTOCEvents: function () {
-                            if (this.agreements.enabled) {
-                                this._initPaypalEvents();
-
-                                const paypalAgreementsWarning = document.querySelector('#paypal-agreements-warning');
-
-                                if (paypalAgreementsWarning) {
-                                    paypalAgreementsWarning.style.display = "none";
-                                }
-                            }
-                        },
-
-                        _initPaypalEvents: function () {
-                            const agreements = document.querySelectorAll(
-                                "input[id*='agreement']"
-                            );
-
-                            if (agreements.length) {
-                                agreements.forEach((input, index) => {
-                                    this.agreements.list.set(index, false);
-
-                                    window.addEventListener('checkbox-updated',  (event) => {
-                                        const { checked } = event.detail;
-                                        this.agreements.list.set(index, checked);
-                                        this._updateTOCState();
-                                    });
-                                });
-                            }
-                        },
-
-                        _updateTOCState: function () {
-                            const unchecked = [...this.agreements.list.values()].some(value => !value);
-                            this.agreements.allAgreementsChecked = !unchecked;
-
-                            const paypalContainer = document.querySelector("#paypal-field");
-                            const agreementsWarningContainer = document.querySelector("#paypal-agreements-warning");
-
-                            if (this.agreements.allAgreementsChecked) {
-                                paypalContainer.style.display = "block";
-                                agreementsWarningContainer.style.display = "none";
-                            } else {
-                                paypalContainer.style.display = "none";
-                                agreementsWarningContainer.style.display = "block";
-                            }
-                        },
-
-                        _initHipaySdk () {
-                            let lang =
-                                this.paypalConfig.request.locale && this.paypalConfig.request.locale.length > 2
-                                    ? this.paypalConfig.request.locale.substr(0, 2)
-                                    : 'en';
-
-                            window.hipaySdk = new HiPay({
-                                username: this.component.apiUsernameTokenJs,
-                                password: this.component.apiPasswordTokenJs,
-                                environment: this.component.env,
-                                lang: lang
-                            });
-                        },
-
-                        _initHostedFields: function () {
-                            this.hipayHostedFields = window.hipaySdk.create(
-                                'paypal',
-                                this.paypalConfig
-                            );
-
-                            this.hipayHostedFields.on('paymentAuthorized', (token) => {
-                                this._paymentAuthorized(token);
-                            });
-
-                            this.hipayHostedFields.on('ready', (token) => {
-                                const placeOrder = document.querySelector('.btn-place-order');
-                                if (placeOrder) {
-                                    placeOrder.setAttribute('disabled','disabled');
-                                }
-                            });
-
-                            return true;
-                        },
-
-                        async _paymentAuthorized (tokenHipay) {
-                            const isValid = await hyvaCheckout.validation.validate();
-
-                            if (!isValid) {
-                                return;
-                            }
-
-                            Magewire.find(HIPAY_METHOD_PAYPAL_WIRE_ID)
-                                .call('setPaymentData', this._getPaymentData(tokenHipay))
-                                .then(() => {
-                                    const paypalIframe = document.querySelector('#paypal-field iframe');
-                                    if (paypalIframe) {
-                                        paypalIframe.style.display = 'none';
-                                    }
-                                    hyvaCheckout.main.getWireComponent()
-                                        .placeOrder()
-                                        .catch(()=> {
-                                            if (paypalIframe) {
-                                                paypalIframe.style.display = 'block';
-                                            }
-                                        });
-                                });
-                        },
-
-                        _getPaymentData (tokenHipay) {
-                            return {
-                                additionalData: {
-                                    paypal_order_id: tokenHipay.orderID,
-                                    browser_info: JSON.stringify(window.hipaySdk.getBrowserInfo()),
-                                    redirectUrl: this.component.afterPlaceOrderUrl
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    document.querySelector('.btn-place-order').removeAttribute('disabled');
-                }
-            }
-        });
-    })();
-</script>
-
-<?php if (!$isPayPalV2): ?>
-    <div>
-        <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
-    </div>
-<?php else: ?>
-    <?php if ((int) $configViewModel->isTOCEnabled()): ?>
-        <span id="paypal-agreements-warning"><?= $escaper->escapeHtml(__('Please accept all terms & conditions')); ?></span>
-    <?php endif ?>
-    <div id="paypal-field" class="!w-2/3 pr-4 mx-auto"></div>
-<?php endif; ?>
+        <div id="paypal-field" data-role="paypal-field" wire:ignore class="!w-2/3 pr-4 mx-auto"></div>
+    <?php endif; ?>
+</div>

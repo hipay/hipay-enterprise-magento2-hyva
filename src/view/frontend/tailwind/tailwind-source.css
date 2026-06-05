@@ -1,2 +1,6 @@
-@import 'payments/hosted-fields.css';
-@import 'payments/paypal.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import './payments/hosted-fields.css';
+@import './payments/paypal.css';

@@ -2,12 +2,12 @@
     "name": "hipay/hipay-enterprise-magento2-hyva",
     "description": "Hyvä compatibility module for HiPay Fullservice module for Magento 2.",
     "type": "magento2-module",
-    "version": "1.2.2",
+    "version": "1.3.0",
     "require": {
         "magento/framework": "*",
         "hyva-themes/magento2-compat-module-fallback": "*",
         "hipay/hipay-fullservice-sdk-magento2": "*",
-        "hyva-themes/magento2-hyva-checkout": "<=1.1.29"
+        "hyva-themes/magento2-hyva-checkout": "^1.3"
     },
     "license": [
         "Apache-2.0"

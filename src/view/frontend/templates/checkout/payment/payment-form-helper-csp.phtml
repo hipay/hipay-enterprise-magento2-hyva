@@ -1,0 +1,95 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    (function () {
+        if (window.hipayFormHelper) return;
+
+        /**
+         * Shared DOM form helpers for the HiPay payment renderers.
+         */
+        window.hipayFormHelper = {
+
+            /**
+             * Return true when every visible required field has a value.
+             */
+            areAddressFieldsFilled: function () {
+                var allFilled = true;
+                var checked = new Set();
+
+                document.querySelectorAll(
+                    ".field-wrapper-inner.required, .field.required"
+                ).forEach(function (wrapper) {
+                    if (!allFilled) return;
+                    if (!wrapper.offsetParent) return;
+
+                    var field = wrapper.querySelector(
+                        "input:not([type='hidden']):not([type='radio']):not([type='checkbox'])," +
+                        " select," +
+                        " textarea"
+                    );
+
+                    if (!field || checked.has(field)) return;
+                    checked.add(field);
+
+                    if (!(field.value || "").trim()) {
+                        allFilled = false;
+                    }
+                });
+
+                return allFilled;
+            },
+
+            /**
+             * Remove stale required attributes left on fields no longer marked required.
+             */
+            cleanupStaleRequiredAttributes: function () {
+                document.querySelectorAll("input[required], select[required]").forEach(function (el) {
+                    if (!el.form) return;
+                    var wrapper = el.closest(".field-wrapper-inner");
+                    if (wrapper && !wrapper.classList.contains("required")) {
+                        el.removeAttribute("required");
+                    }
+                });
+            },
+
+            /**
+             * Run the callback on form changes and return the listener.
+             */
+            startFormSync: function (callback, events) {
+                var evts = Array.isArray(events) ? events : ["input", "change", "livewire:update"];
+                var listener = function () { callback(); };
+                evts.forEach(function (ev) { document.addEventListener(ev, listener); });
+                return listener;
+            },
+
+            /**
+             * Remove a listener returned by startFormSync().
+             */
+            stopFormSync: function (listener, events) {
+                if (!listener) return;
+                var evts = Array.isArray(events) ? events : ["input", "change", "livewire:update"];
+                evts.forEach(function (ev) { document.removeEventListener(ev, listener); });
+            }
+        };
+    })();
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

@@ -14,11 +14,13 @@
  * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
  */
 -->
-<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
     <module name="HiPay_FullserviceHyvaCheckout">
         <sequence>
             <module name="HiPay_FullserviceMagento"/>
             <module name="Hyva_CompatModuleFallback"/>
+            <module name="Hyva_Checkout"/>
         </sequence>
     </module>
 </config>
