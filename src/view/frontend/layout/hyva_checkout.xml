@@ -41,10 +41,26 @@
         <referenceBlock name="checkout.payment.methods">
             <block name="checkout.payment.method.hipay_alma3X"
                    as="hipay_alma3X"
-                   template="HiPay_FullserviceHyvaCheckout::magewire/alma3X.phtml" />
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
             <block name="checkout.payment.method.hipay_alma4X"
                    as="hipay_alma4X"
-                   template="HiPay_FullserviceHyvaCheckout::magewire/alma4X.phtml" />
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
+            <block name="checkout.payment.method.hipay_ideal"
+                   as="hipay_ideal"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
+            <block name="checkout.payment.method.hipay_mbway"
+                   as="hipay_mbway"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
+            <block name="checkout.payment.method.hipay_przelewy24api"
+                   as="hipay_przelewy24api"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
+            <block name="checkout.payment.method.hipay_multibanco"
+                   as="hipay_multibanco"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_iframe.phtml">
+                <arguments>
+                    <argument name="method_code" xsi:type="string">hipay_multibanco</argument>
+                </arguments>
+            </block>
             <block name="checkout.payment.method.hipay_applepay"
                    as="hipay_applepay"
                    template="HiPay_FullserviceHyvaCheckout::magewire/applepay.phtml">
@@ -81,6 +97,50 @@
                     </argument>
                 </arguments>
             </block>
+            <block name="checkout.payment.method.hipay_ideal_hosted_fields"
+                   as="hipay_ideal_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/local_hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        \HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod
+                    </argument>
+                    <argument name="method_code" xsi:type="string">hipay_ideal_hosted_fields</argument>
+                    <argument name="product_code" xsi:type="string">ideal</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_bancontact_hosted_fields"
+                   as="hipay_bancontact_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/local_hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        \HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod
+                    </argument>
+                    <argument name="method_code" xsi:type="string">hipay_bancontact_hosted_fields</argument>
+                    <argument name="product_code" xsi:type="string">bancontact</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_multibanco_hosted_fields"
+                   as="hipay_multibanco_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/local_hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        \HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod
+                    </argument>
+                    <argument name="method_code" xsi:type="string">hipay_multibanco_hosted_fields</argument>
+                    <argument name="product_code" xsi:type="string">multibanco</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_mbway_hosted_fields"
+                   as="hipay_mbway_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/local_hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        \HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod
+                    </argument>
+                    <argument name="method_code" xsi:type="string">hipay_mbway_hosted_fields</argument>
+                    <argument name="product_code" xsi:type="string">mbway</argument>
+                </arguments>
+            </block>
         </referenceBlock>
         <referenceContainer name="magewire.plugin.scripts">
             <block name="hipay.checkout.csp.form_helper"
@@ -95,6 +155,12 @@
                    template="HiPay_FullserviceHyvaCheckout::checkout/payment/hosted-csp.phtml"/>
             <block name="hipay.checkout.csp.hosted_fields"
                    template="HiPay_FullserviceHyvaCheckout::checkout/payment/hosted-fields-csp.phtml"
+            />
+            <block name="hipay.checkout.csp.local_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::checkout/payment/local-hosted-fields-csp.phtml"
+            />
+            <block name="hipay.checkout.csp.hosted_iframe"
+                   template="HiPay_FullserviceHyvaCheckout::checkout/payment/hosted-iframe-csp.phtml"
             />
         </referenceContainer>
     </body>

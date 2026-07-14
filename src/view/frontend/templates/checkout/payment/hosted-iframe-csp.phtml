@@ -1,0 +1,117 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    /**
+     * Iframe-mode payment renderer for Hyvä Checkout (Multibanco...).
+     * Uses a dedicated "Continue" button and disables the native place-order button,
+     * then shows the HiPay payment page in an iframe once the pending order is placed.
+     */
+    function hipayCheckoutHostedIframe() {
+        const alpineRoot = this.$el;
+
+        const methodCode = alpineRoot.dataset.method;
+
+        let generalConfig = {};
+        try { generalConfig = JSON.parse(alpineRoot.dataset.generalConfig || "{}"); } catch (e) {}
+
+        const full = generalConfig?.payment?.hiPayFullservice || {};
+        const afterUrl = (full.afterPlaceOrderUrl || {})[methodCode] || "";
+        const height = (full.iFrameHeight || {})[methodCode] || "450px";
+
+        const selectors = {};
+
+        // Cache the DOM nodes used by this renderer.
+        function initSelectors() {
+            selectors.continueWrapper = alpineRoot.querySelector(".iframe-continue");
+            selectors.continueBtn = selectors.continueWrapper
+                ? selectors.continueWrapper.querySelector("button")
+                : null;
+            selectors.iframeContainer = alpineRoot.querySelector(".iframe-container");
+            selectors.iframe = alpineRoot.querySelector("iframe");
+        }
+
+        function setNativePlaceOrderDisabled(disabled) {
+            const btn = document.querySelector(".btn-place-order");
+            if (!btn) return;
+
+            if (disabled) {
+                btn.setAttribute("disabled", "disabled");
+            } else {
+                btn.removeAttribute("disabled");
+            }
+        }
+
+        // Validate, place the pending order, then show the HiPay page in the iframe.
+        async function placePendingPaymentOrder() {
+            const isValid = await hyvaCheckout.validation.validate();
+            if (!isValid) return;
+
+            return hyvaCheckout.main.getWireComponent()
+                .placeOrder()
+                .then(() => {
+                    if (selectors.iframe && afterUrl) {
+                        selectors.iframe.style.height = height;
+                        selectors.iframe.src = afterUrl;
+                    }
+                    if (selectors.iframeContainer) selectors.iframeContainer.style.display = "block";
+                    if (selectors.continueWrapper) selectors.continueWrapper.style.display = "none";
+                    setNativePlaceOrderDisabled(true);
+                });
+        }
+
+        // Wire the Continue button and disable the native place-order button.
+        function initializeUi() {
+            initSelectors();
+
+            if (selectors.continueBtn && !selectors.continueBtn.dataset.hipayBound) {
+                selectors.continueBtn.dataset.hipayBound = "1";
+                selectors.continueBtn.addEventListener("click", () => placePendingPaymentOrder());
+            }
+
+            setNativePlaceOrderDisabled(true);
+        }
+
+        function onDeactivate() {
+            setNativePlaceOrderDisabled(false);
+        }
+
+        return {
+            init() {
+                if (!window.hipayPaymentBus) return;
+
+                window.hipayPaymentBus.register(methodCode, {
+                    onActivate: initializeUi,
+                    onDeactivate: onDeactivate
+                });
+
+                window.hipayPaymentBus.ensureActive(methodCode);
+            }
+        };
+    }
+
+    window.addEventListener(
+        "alpine:init",
+        () => Alpine.data("hipayCheckoutHostedIframe", hipayCheckoutHostedIframe),
+        { once: true }
+    );
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>
