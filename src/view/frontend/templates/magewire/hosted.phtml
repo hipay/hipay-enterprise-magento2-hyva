@@ -100,16 +100,14 @@ $customerCards = $configViewModel->getCustomerCards();
             <span><?= $escaper->escapeHtml(__('You will be redirect to payment page after submit order.')) ?></span>
         </div>
 
-        <div class="actions-toolbar border-t-0 iframe-continue" wire:ignore>
-            <div class="primary">
-                <button
-                    data-role="review-save"
-                    type="button"
-                    class="button action primary continue"
-                >
-                    <span><?= $escaper->escapeHtml(__('Continue')) ?></span>
-                </button>
-            </div>
+        <div class="actions-toolbar iframe-continue mt-2" wire:ignore>
+            <button
+                data-role="review-save"
+                type="button"
+                class="btn btn-primary justify-center py-2.5"
+            >
+                <span><?= $escaper->escapeHtml(__('Continue')) ?></span>
+            </button>
         </div>
 
         <div class="iframe-container" style="display:none;" wire:ignore>

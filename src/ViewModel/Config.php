@@ -10,6 +10,7 @@ use HiPay\FullserviceMagento\Model\Method\Providers\CcConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\PaypalConfigProvider as GeneralPaypalConfigProvider;
 use HiPay\FullserviceMagento\Model\PaypalConfigProvider;
 use HiPay\FullserviceMagento\Model\Method\Providers\GenericConfigProvider;
+use HiPay\FullserviceMagento\Model\Method\Providers\LocalConfigProvider;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Serialize\SerializerInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
@@ -39,6 +40,7 @@ class Config implements ArgumentInterface
      * @param PaypalConfigProvider $payPalConfigProvider
      * @param HipayConfig $hipayConfig
      * @param ScopeConfigInterface $scopeConfig
+     * @param LocalConfigProvider $localConfigProvider
      */
     public function __construct(
         private CcConfigProvider $creditCardConfigProvider,
@@ -49,6 +51,7 @@ class Config implements ArgumentInterface
         private PaypalConfigProvider $payPalConfigProvider,
         private HipayConfig $hipayConfig,
         private ScopeConfigInterface $scopeConfig,
+        private LocalConfigProvider $localConfigProvider,
     ) {
     }
 
@@ -134,6 +137,14 @@ class Config implements ArgumentInterface
     public function getSerializedConfig(): string
     {
         return $this->serializer->serialize($this->genericConfigProvider->getConfig());
+    }
+
+    /**
+     * Return serialized local hosted-fields configuration (iDEAL, bancontact, mbway...).
+     */
+    public function getSerializedLocalConfig(): string
+    {
+        return $this->serializer->serialize($this->localConfigProvider->getConfig());
     }
 
     /**
