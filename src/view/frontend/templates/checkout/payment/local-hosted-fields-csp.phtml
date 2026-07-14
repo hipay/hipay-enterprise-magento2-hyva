@@ -1,0 +1,214 @@
+<?php
+/**
+ * HiPay Fullservice Magento - Hyvä Checkout
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Apache 2.0 Licence
+ * that is bundled with this package in the file LICENSE.md.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @copyright Copyright (c) 2024 - HiPay
+ * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
+ */
+
+/**
+ * @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp
+ */
+?>
+<script>
+    "use strict";
+
+    /**
+     * Generic local hosted-fields renderer for Hyvä Checkout (iDEAL, bancontact, mbway...).
+     * Behavior is driven by the product code carried by each method instance.
+     */
+    function hipayCheckoutLocalHostedFields() {
+        const alpineRoot = this.$el;
+
+        const methodCode = alpineRoot.dataset.method;
+        const productCode = alpineRoot.dataset.product;
+        const wireId = alpineRoot.dataset.wireId;
+
+        let localConfig = {};
+        let generalConfig = {};
+
+        try { localConfig = JSON.parse(alpineRoot.dataset.localConfig || "{}"); } catch (e) {}
+        try { generalConfig = JSON.parse(alpineRoot.dataset.generalConfig || "{}"); } catch (e) {}
+
+        const component = {
+            env: "",
+            apiUsernameTokenJs: "",
+            apiPasswordTokenJs: "",
+            locale: "en",
+            hipayHostedFields: null,
+            configHipay: null
+        };
+
+        let hyvaRegistered = false;
+
+        function getDomRoot() {
+            return document.getElementById("hipay-container-hosted-fields-" + productCode);
+        }
+
+        // Read backend config and populate runtime component state.
+        function initComponent() {
+            const method = localConfig?.payment?.[methodCode];
+            const full = generalConfig?.payment?.hiPayFullservice;
+
+            if (method) {
+                component.env = method.env;
+                component.apiUsernameTokenJs = method.apiUsernameTokenJs;
+                component.apiPasswordTokenJs = method.apiPasswordTokenJs;
+            }
+
+            if (full) {
+                component.locale = full.locale?.[methodCode] || component.locale;
+            }
+
+            component.configHipay = {
+                selector: "hipay-container-hosted-fields-" + productCode,
+                template: "auto"
+            };
+        }
+
+        // Initialize HiPay SDK shared across methods.
+        function initHipaySdk() {
+            const lang = component.locale && component.locale.length > 2
+                ? component.locale.substr(0, 2)
+                : "en";
+
+            window.hipaySdk = new HiPay({
+                username: component.apiUsernameTokenJs,
+                password: component.apiPasswordTokenJs,
+                environment: component.env,
+                lang: lang
+            });
+        }
+
+        function domHasInjectedContent() {
+            const root = getDomRoot();
+            return !!(root && root.children.length > 0);
+        }
+
+        // Create the local hosted-fields widget only if not already injected.
+        function createHostedFieldsIfNeeded() {
+            if (component.hipayHostedFields && domHasInjectedContent()) return;
+
+            component.hipayHostedFields = null;
+
+            const root = getDomRoot();
+            if (root) root.innerHTML = "";
+
+            if (!window.hipaySdk) initHipaySdk();
+
+            component.hipayHostedFields = window.hipaySdk.create(productCode, component.configHipay);
+        }
+
+        function ensureUiOnActivate() {
+            if (!getDomRoot()) return;
+
+            initComponent();
+            createHostedFieldsIfNeeded();
+        }
+
+        // Validate with native Hyvä, fetch payment data, then place the order.
+        async function placeOrder() {
+            if (!component.hipayHostedFields) return;
+
+            const isValid = await hyvaCheckout.validation.validate();
+            if (!isValid) return;
+
+            return component.hipayHostedFields.getPaymentData().then(
+                (response) => {
+                    return Magewire.find(wireId)
+                        .call("setPaymentData", {
+                            additionalData: {
+                                cc_type: response.payment_product,
+                                payment_product: response.payment_product,
+                                issuer_bank_id: response.issuer_bank_id,
+                                phone: response.phone,
+                                browser_info: JSON.stringify(response.browser_info)
+                            }
+                        })
+                        .then(() => {
+                            hyvaCheckout.main.getWireComponent().placeOrder();
+                        });
+                },
+                (errors) => {
+                    for (let error in errors) {
+                        throw errors[error].error;
+                    }
+                }
+            );
+        }
+
+        // Register this payment method in Hyvä Checkout once.
+        function registerWithHyvaOnce() {
+            if (!getDomRoot()) return;
+            if (hyvaRegistered) return;
+
+            const existingMethod = hyvaCheckout.payment.getByCode(methodCode);
+
+            if (existingMethod) {
+                existingMethod.initialize = async function () {
+                    initComponent();
+                };
+                existingMethod.placeOrderViaJs = function () {
+                    return true;
+                };
+                existingMethod.placeOrder = async function () {
+                    return placeOrder();
+                };
+
+                hyvaRegistered = true;
+                initComponent();
+                return;
+            }
+
+            hyvaRegistered = true;
+
+            hyvaCheckout.payment.registerMethod({
+                code: methodCode,
+                method: {
+                    async initialize() {
+                        initComponent();
+                    },
+
+                    placeOrderViaJs() {
+                        return true;
+                    },
+
+                    async placeOrder() {
+                        return placeOrder();
+                    }
+                }
+            });
+
+            initComponent();
+        }
+
+        return {
+            init() {
+                if (!window.hipayPaymentBus) return;
+
+                registerWithHyvaOnce();
+
+                window.hipayPaymentBus.register(methodCode, {
+                    onActivate: ensureUiOnActivate,
+                    onDeactivate() {}
+                });
+
+                window.hipayPaymentBus.ensureActive(methodCode);
+            }
+        };
+    }
+
+    window.addEventListener(
+        "alpine:init",
+        () => Alpine.data("hipayCheckoutLocalHostedFields", hipayCheckoutLocalHostedFields),
+        { once: true }
+    );
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>

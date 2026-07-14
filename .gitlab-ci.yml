@@ -1,0 +1,7 @@
+stages:
+  - release
+
+include:
+  - project: 'pi-ecommerce/cms/cms-template-ci'
+    ref: '1.4.0'
+    file: 'release.yaml'

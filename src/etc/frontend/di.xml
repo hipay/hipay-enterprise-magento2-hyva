@@ -49,6 +49,30 @@
                 <item name="hipay_alma4X" xsi:type="object">
                     HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
                 </item>
+                <item name="hipay_ideal" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_multibanco" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceIframeOrderService
+                </item>
+                <item name="hipay_ideal_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_bancontact_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_multibanco_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_mbway" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_przelewy24api" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_mbway_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
             </argument>
         </arguments>
     </type>
@@ -68,6 +92,11 @@
         </arguments>
     </type>
     <type name="HiPay\FullserviceHyvaCheckout\Magewire\PayPalMethod">
+        <arguments>
+            <argument name="checkoutSession" xsi:type="object">Magento\Checkout\Model\Session\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod">
         <arguments>
             <argument name="checkoutSession" xsi:type="object">Magento\Checkout\Model\Session\Proxy</argument>
         </arguments>
