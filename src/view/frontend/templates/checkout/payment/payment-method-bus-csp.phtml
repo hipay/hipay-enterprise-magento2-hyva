@@ -125,7 +125,7 @@
             }));
         }
 
-        // Register lifecycle callbacks for one payment method code.
+        // Register lifecycle callbacks; re-registering re-arms activation.
         function register(method, { onActivate, onDeactivate } = {}) {
             if (!method) return;
 
@@ -133,6 +133,8 @@
                 onActivate: onActivate || null,
                 onDeactivate: onDeactivate || null
             });
+
+            activatedOnce.delete(method);
         }
 
         // Ensure the requested method is active and initialized exactly once.

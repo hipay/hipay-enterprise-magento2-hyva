@@ -17,6 +17,18 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
 
+    <preference for="HiPay\FullserviceMagento\Model\Method\Mbway"
+                type="HiPay\FullserviceHyvaCheckout\Model\Method\Mbway"/>
+    <preference for="HiPay\FullserviceMagento\Model\Method\MbwayHostedFields"
+                type="HiPay\FullserviceHyvaCheckout\Model\Method\MbwayHostedFields"/>
+    <preference for="HiPay\FullserviceMagento\Controller\Redirect\Cancel"
+                type="HiPay\FullserviceHyvaCheckout\Controller\Redirect\Cancel"/>
+    <type name="HiPay\FullserviceHyvaCheckout\Controller\Redirect\Cancel">
+        <arguments>
+            <argument name="cart" xsi:type="object">Magento\Checkout\Model\Cart\Proxy</argument>
+        </arguments>
+    </type>
+
     <type name="Hyva\CompatModuleFallback\Model\CompatModuleRegistry">
         <arguments>
             <argument name="compatModules" xsi:type="array">
