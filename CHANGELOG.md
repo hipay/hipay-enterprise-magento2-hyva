@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.1
+- **Fix** : Fixed MB Way payment methods with recent Hyvä Checkout 1.3.x versions.
+
 ## 1.4.0
 - **Add** : Added iDEAL payment method (hosted page and hosted fields).
 - **Add** : Added Bancontact hosted fields payment method.
