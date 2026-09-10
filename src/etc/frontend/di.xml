@@ -21,6 +21,12 @@
                 type="HiPay\FullserviceHyvaCheckout\Model\Method\Mbway"/>
     <preference for="HiPay\FullserviceMagento\Model\Method\MbwayHostedFields"
                 type="HiPay\FullserviceHyvaCheckout\Model\Method\MbwayHostedFields"/>
+    <preference for="HiPay\FullserviceMagento\Model\Method\BizumHostedFields"
+                type="HiPay\FullserviceHyvaCheckout\Model\Method\BizumHostedFields"/>
+    <preference for="HiPay\FullserviceMagento\Model\Method\BancomatPayHostedFields"
+                type="HiPay\FullserviceHyvaCheckout\Model\Method\BancomatPayHostedFields"/>
+    <preference for="Hyva\Checkout\Observer\Frontend\HyvaCheckoutHyvaCheckoutInitAfter"
+                type="HiPay\FullserviceHyvaCheckout\Observer\Frontend\HyvaCheckoutHyvaCheckoutInitAfter"/>
     <preference for="HiPay\FullserviceMagento\Controller\Redirect\Cancel"
                 type="HiPay\FullserviceHyvaCheckout\Controller\Redirect\Cancel"/>
     <type name="HiPay\FullserviceHyvaCheckout\Controller\Redirect\Cancel">
@@ -82,7 +88,16 @@
                 <item name="hipay_przelewy24api" xsi:type="object">
                     HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
                 </item>
+                <item name="hipay_mybank" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
                 <item name="hipay_mbway_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_bizum_hosted_fields" xsi:type="object">
+                    HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
+                </item>
+                <item name="hipay_bancomatpay_hosted_fields" xsi:type="object">
                     HiPay\FullserviceHyvaCheckout\Model\Magewire\Payment\PlaceOrderService
                 </item>
             </argument>

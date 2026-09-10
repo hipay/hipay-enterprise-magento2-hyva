@@ -29,8 +29,15 @@ $configViewModel = $viewModels->require(Config::class);
 $methodCode = (string) $block->getData('method_code');
 $productCode = (string) $block->getData('product_code');
 
-// mbway's floating phone label needs top spacing so it doesn't overlap the method title
-$containerStyle = $productCode === 'mbway' ? 'padding-top: 1.25rem;' : '';
+// async methods needing a mobile-app confirmation show an informative note
+$informativeMessages = [
+    'bizum' => __('The payment will have to be validated on your Bizum application.'),
+    'bancomatpay' => __('The payment will have to be validated on your Bancomat Pay application.'),
+];
+$informativeMessage = $informativeMessages[$productCode] ?? null;
+
+// phone widgets (mbway, bizum, bancomatpay): top spacing so the floating label doesn't overlap the title
+$containerStyle = in_array($productCode, ['mbway', 'bizum', 'bancomatpay'], true) ? 'padding-top: 1.25rem;' : '';
 ?>
 <div
     x-data="hipayCheckoutLocalHostedFields"
@@ -46,4 +53,9 @@ $containerStyle = $productCode === 'mbway' ? 'padding-top: 1.25rem;' : '';
         <?php if ($containerStyle): ?>style="<?= $escaper->escapeHtmlAttr($containerStyle) ?>"<?php endif; ?>
         wire:ignore
     ></div>
+    <?php if ($informativeMessage): ?>
+        <div class="information-message mt-2 text-sm text-gray-600">
+            <?= $escaper->escapeHtml($informativeMessage) ?>
+        </div>
+    <?php endif; ?>
 </div>
