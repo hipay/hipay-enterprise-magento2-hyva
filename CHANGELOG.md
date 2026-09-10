@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+- **Add** : Added Bizum payment method.
+- **Add** : Added Bancomat Pay payment method.
+- **Add** : Added MyBank payment method.
+- **Add** : Added multi-browser support for Apple Pay.
+- **Fix** : Fixed various checkout issues affecting payment method selection, order cancellation, and Apple Pay display.
+
 ## 1.4.1
 - **Fix** : Fixed MB Way payment methods with recent Hyvä Checkout 1.3.x versions.
 
