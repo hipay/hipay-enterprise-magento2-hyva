@@ -58,6 +58,8 @@
             displayName: "",
             buttonType: "plain",
             buttonColor: "black",
+            multiBrowser: false,
+            displayMode: "popup",
             locale: "en_us"
         };
 
@@ -73,6 +75,8 @@
                 component.displayName = hipayApplepay.display_name || component.displayName;
                 component.buttonType = hipayApplepay.button_type || component.buttonType;
                 component.buttonColor = hipayApplepay.button_color || component.buttonColor;
+                component.multiBrowser = hipayApplepay.multi_browser === "1";
+                component.displayMode = hipayApplepay.display_mode || component.displayMode;
             }
 
             if (hiPayFullservice) {
@@ -177,7 +181,10 @@
                 return null;
             }
 
-            if (component.merchantId) {
+            if (component.multiBrowser) {
+                // multi-browser: show Apple Pay outside Safari, skip the native canMakePayments check
+                applePayAllowed = true;
+            } else if (component.merchantId) {
                 try {
                     if (!window.hipaySdk) initHipaySdk();
                     const result = await window.hipaySdk.canMakePaymentsWithActiveCard(component.merchantId);
@@ -572,6 +579,34 @@
             });
         }
 
+        // A Magewire re-render re-adds the "hidden" class to the terms warning, and the
+        // toc watcher only re-applies state on agreement change. Re-apply the warning on
+        // every re-render while Apple Pay is the active method and the terms are unchecked.
+        function bindTocRerenderGuard() {
+            if (window.__hipayApplePayTocRerenderBound) return;
+            window.__hipayApplePayTocRerenderBound = true;
+
+            document.addEventListener("livewire:update", function () {
+                if (!tocEnabled) return;
+
+                const active = window.hipayPaymentBus && window.hipayPaymentBus.getActiveMethod
+                    ? window.hipayPaymentBus.getActiveMethod()
+                    : null;
+                if (active !== methodCode) return;
+
+                const warning = document.getElementById("applepay-toc-message");
+                if (!warning) return;
+
+                if (readAllAgreementsChecked()) {
+                    warning.classList.add("hidden");
+                    warning.style.display = "";
+                } else {
+                    warning.classList.remove("hidden");
+                    warning.style.display = "block";
+                }
+            });
+        }
+
         function showNotAllowedState() {
             const btn = getButtonContainer();
 
@@ -600,6 +635,8 @@
 
             applePayConfig = {
                 displayName: component.displayName,
+                multiBrowsers: component.multiBrowser,
+                displayMode: component.displayMode,
                 request: {
                     countryCode: quoteData.countryCode,
                     currencyCode: quoteData.currencyCode,
@@ -738,6 +775,7 @@
                 if (!window.hipayPaymentBus) return;
 
                 registerWithHyvaOnce();
+                bindTocRerenderGuard();
 
                 window.hipayPaymentBus.register(methodCode, {
                     onActivate: initOnActivate,

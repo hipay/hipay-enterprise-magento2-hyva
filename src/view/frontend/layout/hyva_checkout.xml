@@ -54,6 +54,9 @@
             <block name="checkout.payment.method.hipay_przelewy24api"
                    as="hipay_przelewy24api"
                    template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
+            <block name="checkout.payment.method.hipay_mybank"
+                   as="hipay_mybank"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/hosted_page.phtml" />
             <block name="checkout.payment.method.hipay_multibanco"
                    as="hipay_multibanco"
                    template="HiPay_FullserviceHyvaCheckout::magewire/hosted_iframe.phtml">
@@ -139,6 +142,28 @@
                     </argument>
                     <argument name="method_code" xsi:type="string">hipay_mbway_hosted_fields</argument>
                     <argument name="product_code" xsi:type="string">mbway</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_bizum_hosted_fields"
+                   as="hipay_bizum_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/local_hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        \HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod
+                    </argument>
+                    <argument name="method_code" xsi:type="string">hipay_bizum_hosted_fields</argument>
+                    <argument name="product_code" xsi:type="string">bizum</argument>
+                </arguments>
+            </block>
+            <block name="checkout.payment.method.hipay_bancomatpay_hosted_fields"
+                   as="hipay_bancomatpay_hosted_fields"
+                   template="HiPay_FullserviceHyvaCheckout::magewire/local_hosted_fields.phtml">
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        \HiPay\FullserviceHyvaCheckout\Magewire\HostedFieldsLocalMethod
+                    </argument>
+                    <argument name="method_code" xsi:type="string">hipay_bancomatpay_hosted_fields</argument>
+                    <argument name="product_code" xsi:type="string">bancomatpay</argument>
                 </arguments>
             </block>
         </referenceBlock>

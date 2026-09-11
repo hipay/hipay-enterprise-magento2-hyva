@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace HiPay\FullserviceHyvaCheckout\Controller\Redirect;
 
-use HiPay\FullserviceMagento\Controller\Redirect\Cancel as BaseCancel;
+use HiPay\FullserviceMagento\Controller\Fullservice;
 
 /**
  * HiPay Fullservice Magento - Hyvä Checkout
@@ -19,7 +19,7 @@ use HiPay\FullserviceMagento\Controller\Redirect\Cancel as BaseCancel;
  * @copyright Copyright (c) 2024 - HiPay
  * @license   http://www.apache.org/licenses/LICENSE-2.0 Apache 2.0 Licence
  */
-class Cancel extends BaseCancel
+class Cancel extends Fullservice
 {
     /**
      * @var \Magento\Sales\Model\OrderFactory
@@ -70,9 +70,7 @@ class Cancel extends BaseCancel
             $hipaySession,
             $logger,
             $gatewayManagerFactory,
-            $resultJsonFactory,
-            $orderFactory,
-            $orderManagement
+            $resultJsonFactory
         );
     }
 
@@ -92,7 +90,7 @@ class Cancel extends BaseCancel
             $order = $this->orderFactory->create();
             $order->load($lastOrderId);
             if ($order && (bool)$order->getPayment()->getMethodInstance()->getConfigData('re_add_to_cart')) {
-                $items = $order->getItemsCollection();
+                $items = $order->getAllVisibleItems();
                 try {
                     foreach ($items as $item) {
                         $this->cart->addOrderItem($item);
